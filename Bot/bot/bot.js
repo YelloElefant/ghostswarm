@@ -104,7 +104,7 @@ mqttClient.on('message', (topic, message) => {
 });
 
 function updateSwarmMap(infoHash, pieceIndex, who) {
-   const swarmFile = '/swarm' + `${infoHash}.json`;
+   const swarmFile = path.join('/swarm', `${infoHash}.json`);
    fs.mkdirSync(path.dirname(swarmFile), { recursive: true });
 
    let map = {};
