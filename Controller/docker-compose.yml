@@ -33,3 +33,7 @@ services:
       - redis
       - mqtt
     restart: unless-stopped
+    volumes:
+      - ./controller:/app
+      - /home/yelloelefant/tailscale/data:/var/lib/tailscale
+      - /var/run/tailscale:/var/run/tailscale

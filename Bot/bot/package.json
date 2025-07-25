@@ -3,6 +3,7 @@
    "version": "1.0.0",
    "main": "bot.js",
    "dependencies": {
-      "mqtt": "^5.4.0"
+      "mqtt": "^5.4.0",
+      "child_process": "^1.0.2"
    }
 }

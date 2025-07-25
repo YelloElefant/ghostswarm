@@ -3,49 +3,26 @@
   <head>
     <title>GhostSwarm Controller</title>
     <link rel="stylesheet" href="/style.css" />
+    <script src="https://d3js.org/d3.v7.min.js"></script>
   </head>
   <body>
     <h1>GhostSwarm Controller UI</h1>
+
+    <h2>Live Swarm View</h2>
+    <svg id="swarmGraph" width="800" height="500"></svg>
+
+    <h2>Send Command to Bot</h2>
     <form id="cmdForm">
-      <input type="text" name="botId" placeholder="bot ID" required />
-      <input
-        type="text"
-        name="command"
-        placeholder="command (e.g., echo)"
-        required
-      />
-      <input type="text" name="payload" placeholder='{"message":"Hi"}' />
+      <label for="botSelect">Bot:</label>
+      <input id="botId" type="text" placeholder="Bot ID" required />
+
+      <label for="cmdInput">Command:</label>
+      <input type="text" id="cmdInput" placeholder="e.g. uptime" required />
+
       <button type="submit">Send</button>
     </form>
-    <pre id="result"></pre>
 
-    <script>
-      document
-        .getElementById("cmdForm")
-        .addEventListener("submit", async (e) => {
-          e.preventDefault();
-          const botId = e.target.botId.value;
-          const command = e.target.command.value;
-          let payload = {};
-          try {
-            payload = JSON.parse(e.target.payload.value || "{}");
-          } catch (err) {
-            return alert("Payload must be valid JSON");
-          }
-
-          const res = await fetch("/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ botId, command, payload }),
-          });
-
-          const data = await res.json();
-          document.getElementById("result").innerText = JSON.stringify(
-            data,
-            null,
-            2
-          );
-        });
-    </script>
+    <pre id="cmdOutput"></pre>
+    <script src="/index.js"></script>
   </body>
 </html>

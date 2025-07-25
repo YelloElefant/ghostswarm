@@ -3,6 +3,6 @@ services:
     build: ./bot
     container_name: ghostswarm-bot1
     environment:
-      - BOT_ID=bot123
+      - BOT_ID=bigppserver2
       - MQTT_BROKER_URL=mqtt://100.76.233.82:1883
     restart: unless-stopped
