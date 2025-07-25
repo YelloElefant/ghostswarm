@@ -123,11 +123,6 @@ function updateSwarmMap(infoHash, pieceIndex, who) {
 function handleTorrentDownload(infoHash, payload) {
    // save payload to file 
    const torrentPath = `torrents/${infoHash}.json`;
-   fs.mkdirSync('torrents', { recursive: true }); // ensure directory exists
-   fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
-   console.log(`📂 [${botId}] saved torrent to ${torrentPath}`);
-
-   // check if torrent already exists and is downloaded
    const outDir = path.join('/pieces', infoHash);
    if (fs.existsSync(outDir)) {
       console.log(`📂 [${botId}] torrent ${infoHash} already exists in ${outDir}`);
@@ -141,6 +136,12 @@ function handleTorrentDownload(infoHash, payload) {
       console.log(`📂 [${botId}] torrent ${infoHash} already exists in /uploads/${payload.name}`)
       return;
    }
+
+   fs.mkdirSync('torrents', { recursive: true }); // ensure directory exists
+   fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
+   console.log(`📂 [${botId}] saved torrent to ${torrentPath}`);
+
+   // check if torrent already exists and is downloaded
    // Download the torrent
 
 
