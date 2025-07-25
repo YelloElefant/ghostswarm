@@ -4,6 +4,7 @@ const { exec } = require('child_process');
 const MQTT_BROKER = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
 
 const fs = require("fs");
+const path = require("path");
 const { download } = require("./download.js"); // Ensure you have this package installed
 
 let botId;
@@ -125,7 +126,24 @@ function handleTorrentDownload(infoHash, payload) {
    fs.mkdirSync('torrents', { recursive: true }); // ensure directory exists
    fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
    console.log(`📂 [${botId}] saved torrent to ${torrentPath}`);
+
+   // check if torrent already exists and is downloaded
+   const outDir = path.join('/pieces', infoHash);
+   if (fs.existsSync(outDir)) {
+      console.log(`📂 [${botId}] torrent ${infoHash} already exists in ${outDir}`);
+      return;
+   }
+   if (fs.existsSync(torrentPath)) {
+      console.log(`📂 [${botId}] torrent ${infoHash} already exists in ${torrentPath}`);
+      return;
+   }
+   if (fs.existsSync('/uploads/' + payload.name)) {
+      console.log(`📂 [${botId}] torrent ${infoHash} already exists in /uploads/${payload.name}`)
+      return;
+   }
    // Download the torrent
+
+
    download(payload, infoHash, mqttClient)
       .then(() => {
          console.log(`📥 [${botId}] started downloading torrent ${infoHash}`);
