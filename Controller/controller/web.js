@@ -216,6 +216,10 @@ app.get('/upload.html', (req, res) => {
 );
 
 
+
+
+
+
 const { registerTorrent } = require('./torrent'); // Export from previous
 app.post('/api/register-torrent', upload.single('torrentFile'), async (req, res) => {
    try {
@@ -236,11 +240,20 @@ app.post('/api/register-torrent', upload.single('torrentFile'), async (req, res)
       const torrentData = JSON.parse(fs.readFileSync("torrents/" + hash + ".json", 'utf8'));
 
 
-      // Send MQTT task to each bot
-      bots.forEach(bot => {
-         const topic = `ghostswarm/${bot.id}/download/` + hash; // Add hash to topic
-         mqttClient.publish(topic, JSON.stringify(torrentData));
-      });
+      // Send MQTT task to ghostswarm/download/hash
+      const taskTopic = `ghostswarm/download/${hash}`;
+
+      mqttClient.publish(taskTopic, JSON.stringify(torrentData), { qos: 1 }, (err) => {
+         if (err) {
+            console.error(`❌ Failed to publish task for ${hash}:`, err);
+            return res.status(500).json({ error: 'Failed to publish task' });
+         }
+         console.log(`📤 Published task for ${hash} to ${taskTopic}`)
+      }
+      );
+
+      // also save to Redis
+      await redis.set(`torrent:${hash}`, JSON.stringify(torrentData));
 
       res.json({ success: true, hash });
    } catch (err) {

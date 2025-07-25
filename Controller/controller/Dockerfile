@@ -16,4 +16,4 @@ RUN apk add --no-cache bash curl iptables ip6tables iproute2 openresolv \
 # # Copy the rest of the application code
 # COPY . .
 
-CMD ["node", "web.js"]
+CMD ["sh", "start.sh"]

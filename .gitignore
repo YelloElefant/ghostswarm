@@ -3,3 +3,5 @@ Controller/db
 **/package-lock.json
 **/uploads
 **/torrents
+**/peices
+**/swarm

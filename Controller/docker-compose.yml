@@ -29,6 +29,7 @@ services:
       - WEB_PORT=3000
     ports:
       - "8888:3000" # 🔥 expose web interface
+      - "5000:5000" # 🔥 expose seeder
     depends_on:
       - redis
       - mqtt

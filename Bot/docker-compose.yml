@@ -7,4 +7,8 @@ services:
       - MQTT_BROKER_URL=mqtt://100.76.233.82:1883
     volumes:
       - /etc/hostname:/host_hostname:ro
+      - ./uploads:/uploads
+      - ./torrents:/torrents
+      - ./peices:/pieces
+      - ./swarm:/swarm
     restart: unless-stopped

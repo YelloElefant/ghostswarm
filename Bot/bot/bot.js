@@ -4,6 +4,7 @@ const { exec } = require('child_process');
 const MQTT_BROKER = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
 
 const fs = require("fs");
+const { download } = require("./download.js"); // Ensure you have this package installed
 
 let botId;
 try {
@@ -25,13 +26,9 @@ mqttClient.on('connect', () => {
          console.log(`📡 [${botId}] subscribed to ${topic}`);
       }
    });
-   mqttClient.subscribe(`ghostswarm/${botId}/download/#`, { qos: 1 }, (err) => {
-      if (err) {
-         console.error(`❌ [${botId}] failed to subscribe to download topic:`, err);
-      } else {
-         console.log(`📡 [${botId}] subscribed to ghostswarm/${botId}/download/+`);
-      }
-   });
+   mqttClient.subscribe(`ghostswarm/download/#`);
+   mqttClient.subscribe(`ghostswarm/torrent/have/#`);
+
 });
 
 mqttClient.on('message', (topic, message) => {
@@ -65,20 +62,20 @@ mqttClient.on('message', (topic, message) => {
             console.log(`📤 [${botId}] responded to status`);
          }
 
-      } else if (topic.startsWith(`ghostswarm/${botId}/download`)) {
-         // download torrent
-
-         const hash = topic.split('/').pop(); // get the last part of the topic
+      } else if (topic.startsWith('ghostswarm/download/')) {
+         const infoHash = topic.split('/')[2];
          const payload = JSON.parse(message.toString());
-         console.log(`📥 [${botId}] received download request`, payload);
+         console.log(`📥 [${botId}] received torrent download request for ${infoHash}`, payload);
+         handleTorrentDownload(infoHash, payload);
+      }
 
-         // save torrent data to file
-         const torrentPath = `torrents/${hash}.json`;
-         fs.mkdirSync('torrents', { recursive: true }); // ensure directory exists
-         fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
-         console.log(`📂 [${botId}] saved torrent to ${torrentPath}`);
-
-         // Respond with success
+      else if (topic.startsWith('ghostswarm/torrent/have/')) {
+         const bot = topic.split('/')[3];
+         const { infoHash, pieceIndex } = JSON.parse(message.toString());
+         if (bot == botId) {
+            return;
+         }
+         updateSwarmMap(infoHash, pieceIndex, bot);
       }
    } catch (err) {
       console.error(`❌ [${botId}] failed to handle message`, err);
@@ -93,6 +90,52 @@ mqttClient.on('message', (topic, message) => {
    }
 });
 
+function updateSwarmMap(infoHash, pieceIndex, who) {
+   const swarmFile = path.join('/swarm', `${infoHash}.json`);
+   fs.mkdirSync(path.dirname(swarmFile), { recursive: true });
+
+   let map = {};
+   if (fs.existsSync(swarmFile)) {
+      map = JSON.parse(fs.readFileSync(swarmFile));
+   }
+
+   const key = pieceIndex.toString();
+   if (!map[key]) map[key] = [];
+   if (!map[key].includes(who)) map[key].push(who);
+
+   fs.writeFileSync(swarmFile, JSON.stringify(map, null, 2));
+   console.log(`🧠 Swarm updated: piece ${pieceIndex} held by ${who}`);
+}
+
+function handleTorrentDownload(infoHash, payload) {
+   // save payload to file 
+   const torrentPath = `torrents/${infoHash}.json`;
+   fs.mkdirSync('torrents', { recursive: true }); // ensure directory exists
+   fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
+   console.log(`📂 [${botId}] saved torrent to ${torrentPath}`);
+   // Download the torrent
+   download(payload, infoHash, mqttClient)
+      .then(() => {
+         console.log(`📥 [${botId}] started downloading torrent ${infoHash}`);
+      })
+      .catch(err => {
+         console.error(`❌ [${botId}] failed to download torrent ${infoHash}:`, err);
+         // Send error response
+         const statusTopic = `ghostswarm/${botId}/status`;
+         mqttClient.publish(statusTopic, JSON.stringify({
+            status: "error",
+            error: err.message,
+            time: Date.now()
+         }));
+      }
+      );
+
+}
+
+
+
+
+
 
 function heartbeat() {
    const statusTopic = `ghostswarm/status/${botId}`;
@@ -100,7 +143,7 @@ function heartbeat() {
       status: "alive",
       time: Date.now()
    }));
-   console.log(`❤️ [${botId}] heartbeat sent`);
+   // console.log(`❤️ [${botId}] heartbeat sent`);
 }
 
 heartbeat(); // send initial heartbeat
