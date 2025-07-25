@@ -28,10 +28,15 @@ mqttClient.on('connect', () => {
    });
    mqttClient.subscribe(`ghostswarm/download/#`);
    mqttClient.subscribe(`ghostswarm/torrent/have/#`);
+   mqttClient.subscribe(`ghostswarm/${botId}/download/#`, { qos: 1 }, (err) => {
+      checkForTorrents();
+   });
+
 
 });
 
 mqttClient.on('message', (topic, message) => {
+   console.log("message received on topic:", topic);
 
    try {
       if (topic == `ghostswarm/${botId}/command`) {
@@ -77,6 +82,13 @@ mqttClient.on('message', (topic, message) => {
          }
          updateSwarmMap(infoHash, pieceIndex, bot);
       }
+
+      else if (topic.startsWith(`ghostswarm/${botId}/download/`)) {
+         const infoHash = topic.split('/')[3];
+         const payload = JSON.parse(message.toString());
+         console.log(`📥 [${botId}] need to download torrent ${infoHash}`, payload);
+         handleTorrentDownload(infoHash, payload);
+      }
    } catch (err) {
       console.error(`❌ [${botId}] failed to handle message`, err);
 
@@ -91,7 +103,7 @@ mqttClient.on('message', (topic, message) => {
 });
 
 function updateSwarmMap(infoHash, pieceIndex, who) {
-   const swarmFile = path.join('/swarm', `${infoHash}.json`);
+   const swarmFile = '/swarm' + `${infoHash}.json`;
    fs.mkdirSync(path.dirname(swarmFile), { recursive: true });
 
    let map = {};
@@ -132,6 +144,14 @@ function handleTorrentDownload(infoHash, payload) {
 
 }
 
+
+function checkForTorrents() {
+   mqttClient.publish(`ghostswarm/${botId}/check/torrents`, JSON.stringify({
+      requestId: `req-${Date.now()}`,
+      type: "checkTorrents"
+   }));
+   console.log(`📥 [${botId}] sent torrent check request`);
+}
 
 
 

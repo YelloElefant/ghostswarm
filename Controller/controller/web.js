@@ -55,6 +55,10 @@ mqttClient.on('connect', () => {
       if (err) console.error('❌ MQTT status sub failed:', err);
       else console.log('📡 Subscribed to bot status messages');
    });
+   mqttClient.subscribe('ghostswarm/+/check/torrents', { qos: 1 }, (err) => {
+      if (err) console.error('❌ MQTT download sub failed:', err);
+      else console.log('📡 Subscribed to torrent check messages');
+   });
 });
 
 mqttClient.on('message', async (topic, message) => {
@@ -81,7 +85,7 @@ mqttClient.on('message', async (topic, message) => {
       const data = JSON.parse(payload);
       const botId = topic.split('/')[2];
 
-      console.log(`📥 Status update from ${botId}`);
+      // console.log(`📥 Status update from ${botId}`);
       swarmMap.set(botId, {
          status: data.status,
          lastSeen: data.time,
@@ -95,6 +99,37 @@ mqttClient.on('message', async (topic, message) => {
 
 
 
+   } else if (topic.startsWith('ghostswarm/') && topic.endsWith('/check/torrents')) {
+      // get all torrents from Redis
+      const botId = topic.split('/')[1];
+      const torrents = await redis.keys('torrent:*');
+      const torrentData = await Promise.all(torrents.map(async (key) => {
+         const data = await redis.get(key);
+         // return JSON.parse(data);
+         // return json which is infohash: data
+         const torrentInfo = JSON.parse(data);
+         return {
+            infoHash: key.split(':')[1], // Extract infoHash from key
+            data: torrentInfo
+         }
+      }
+      ));
+      console.log(`📥 Torrent check request from ${botId}, found ${torrents.length} torrents`);
+      // get infoHash of each torrent
+      const torrentInfoHashes = torrentData.map(t => t.infoHash);
+      console.log("Sending: ", torrentInfoHashes);
+
+      // Send back torrent data
+      const responseTopic = `ghostswarm/${botId}/download`;
+      torrentData.forEach(torrent => {
+         mqttClient.publish(responseTopic + `/${torrent.infoHash}`, JSON.stringify(torrent.data), { qos: 1 }, (err) => {
+            if (err) {
+               console.error(`❌ Failed to send torrent data to ${botId}:`, err);
+            } else {
+               console.log(`📤 Sent torrent data to ${botId}:`, torrent.infoHash);
+            }
+         });
+      });
    }
 
 
