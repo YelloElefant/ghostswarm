@@ -29,7 +29,7 @@ mqttClient.on('connect', () => {
       if (err) {
          console.error(`❌ [${botId}] failed to subscribe to download topic:`, err);
       } else {
-         console.log(`📡 [${botId}] subscribed to ghostswarm/${botId}/download`);
+         console.log(`📡 [${botId}] subscribed to ghostswarm/${botId}/download/+`);
       }
    });
 });
@@ -65,13 +65,16 @@ mqttClient.on('message', (topic, message) => {
             console.log(`📤 [${botId}] responded to status`);
          }
 
-      } else if (topic == `ghostswarm/${botId}/download`) {
+      } else if (topic == `ghostswarm/${botId}/download/+`) {
          // download torrent 
+         // Note: The + wildcard allows for more specific topics like ghostswarm/bot123/download/abc123
+
+         const hash = topic.split('/').pop(); // get the last part of the topic
          const payload = JSON.parse(message.toString());
          console.log(`📥 [${botId}] received download request`, payload);
 
          // save torrent data to file
-         const torrentPath = `torrents/${payload.infoHash}.json`;
+         const torrentPath = `torrents/${hash}.json`;
          fs.mkdirSync('torrents', { recursive: true }); // ensure directory exists
          fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
          console.log(`📂 [${botId}] saved torrent to ${torrentPath}`);
