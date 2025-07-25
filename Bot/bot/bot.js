@@ -67,3 +67,16 @@ mqttClient.on('message', (topic, message) => {
       }));
    }
 });
+
+
+function heartbeat() {
+   const statusTopic = `ghostswarm/status/${botId}`;
+   mqttClient.publish(statusTopic, JSON.stringify({
+      status: "alive",
+      time: Date.now()
+   }));
+   console.log(`❤️ [${botId}] heartbeat sent`);
+}
+
+heartbeat(); // send initial heartbeat
+setInterval(heartbeat, 15000); // send heartbeat every 15 seconds
