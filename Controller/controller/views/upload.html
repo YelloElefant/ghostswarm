@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <!-- controller.html -->
+    <form id="uploadForm">
+      <input type="file" name="torrentFile" />
+      <button type="submit">Register Torrent</button>
+    </form>
+
+    <script>
+      document.getElementById("uploadForm").onsubmit = async (e) => {
+        e.preventDefault();
+
+        const fileInput = document.querySelector('input[type="file"]');
+        const formData = new FormData();
+        formData.append("torrentFile", fileInput.files[0]);
+
+        const res = await fetch("/api/register-torrent", {
+          method: "POST",
+          body: formData,
+        });
+
+        const result = await res.json();
+        console.log("Registered Torrent:", result);
+      };
+    </script>
+  </body>
+</html>

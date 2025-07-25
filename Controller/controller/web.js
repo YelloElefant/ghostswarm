@@ -6,6 +6,11 @@ const mqtt = require('mqtt');
 const http = require('http');
 const { Server } = require('ws');
 const { exec } = require('child_process');
+const fs = require('fs');
+const multer = require('multer');
+
+// Configure multer for file uploads
+const upload = multer({ dest: '/uploads/temp/' });
 
 const app = express();
 const server = http.createServer(app);
@@ -21,6 +26,10 @@ const redis = new Redis({ host: REDIS_HOST, port: REDIS_PORT });
 const mqttClient = mqtt.connect(MQTT_BROKER_URL);
 
 const swarmMap = new Map(); // Store bot info by ID
+
+// Ensure upload directories exist
+fs.mkdirSync('/uploads', { recursive: true });
+fs.mkdirSync('/uploads/temp', { recursive: true });
 
 
 
@@ -126,55 +135,44 @@ app.post('/send', async (req, res) => {
    });
 });
 
+function getBots() {
+   return new Promise((resolve) => {
+      exec('tailscale status --json', (err, stdout) => {
+         if (err) {
+            console.error('❌ Tailscale status error:', err);
+            return resolve([]);
+         }
 
+         try {
+            const data = JSON.parse(stdout);
+            const peers = data.Peer || {};
+            const online = Object.entries(peers)
+               .filter(([_, p]) => p.Online)
+               .map(([_, p]) => {
+                  const botId = p.HostName;
+                  const status = swarmMap.get(botId) || { status: 'unknown', lastSeen: Date.now() };
+
+                  return {
+                     id: botId,
+                     ip: p.TailscaleIPs[0],
+                     alive: status.status === "alive",
+                     lastSeen: status.lastSeen ? new Date(status.lastSeen).toLocaleString() : 'unknown',
+                  };
+               });
+
+            resolve(online);
+         } catch (e) {
+            console.error('❌ Parse error:', e);
+            resolve([]);
+         }
+      });
+   });
+}
 
 // Get Tailscale clients
-app.get('/bots', (req, res) => {
-   exec('tailscale status --json', (err, stdout) => {
-      if (err) {
-         console.error('❌ Tailscale status error:', err);
-         return res.status(500).json({ error: 'Could not get Tailscale status' });
-      }
-
-      try {
-         const data = JSON.parse(stdout);
-         const peers = data.Peer || {};
-         const online = Object.entries(peers)
-            .filter(([_, p]) => p.Online)
-            .map(([_, p]) => ({
-               hostname: p.HostName,
-               ip: p.TailscaleIPs[0],
-               os: p.OS,
-            }));
-
-
-         // compare to swarmMap
-         const bots = online.map(peer => {
-            const botId = peer.hostname;
-            const status = swarmMap.get(botId) || { status: 'unknown', lastSeen: Date.now() };
-            if (status.status == "alive") {
-               return {
-                  id: botId,
-                  ip: peer.ip,
-                  alive: true,
-                  lastSeen: status.lastSeen ? new Date(status.lastSeen).toLocaleString() : 'unknown',
-               };
-            }
-            return {
-               id: botId,
-               ip: peer.ip,
-               alive: false,
-               lastSeen: status.lastSeen ? new Date(status.lastSeen).toLocaleString() : 'unknown',
-            };
-         });
-         res.json(bots);
-      } catch (e) {
-         console.error('❌ Parse error:', e);
-      }
-   });
-
-
-
+app.get('/bots', async (req, res) => {
+   const bots = await getBots();
+   res.json(bots);
 });
 
 
@@ -210,6 +208,46 @@ function checkIfDead() {
 setInterval(() => {
    checkIfDead();
 }, 15500);
+
+
+app.get('/upload.html', (req, res) => {
+   res.sendFile(path.join(__dirname, 'views/upload.html'));
+}
+);
+
+
+const { registerTorrent } = require('./torrent'); // Export from previous
+app.post('/api/register-torrent', upload.single('torrentFile'), async (req, res) => {
+   try {
+      const filePath = req.file.path;
+      const originalName = req.file.originalname;
+
+      // Move to a proper location
+      const destPath = path.join('/uploads', originalName);
+      fs.renameSync(filePath, destPath);
+
+      // Register and get hash
+      const hash = await registerTorrent(destPath);
+
+      // Load bots (could be from Tailscale or MQTT keep-alives)
+      let bots = await getBots();
+
+      // read the torrent file
+      const torrentData = JSON.parse(fs.readFileSync("torrents/" + hash + ".json", 'utf8'));
+
+
+      // Send MQTT task to each bot
+      bots.forEach(bot => {
+         const topic = `ghostswarm/${bot.id}/download/` + hash; // Add hash to topic
+         mqttClient.publish(topic, JSON.stringify(torrentData));
+      });
+
+      res.json({ success: true, hash });
+   } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Failed to register torrent' });
+   }
+});
 
 // Start server
 server.listen(PORT, () => {
