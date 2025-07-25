@@ -23,6 +23,9 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - MQTT_BROKER_URL=mqtt://mqtt:1883
+      - WEB_PORT=3000
+    ports:
+      - "8888:3000" # 🔥 expose web interface
     depends_on:
       - redis
       - mqtt

@@ -16,4 +16,12 @@ redis.on('connect', () => {
    console.log('✅ Redis connected');
 });
 
-console.log("Controller is running...");
+
+
+setTimeout(() => {
+   const topic = 'ghostswarm/bot123/command';
+   const message = JSON.stringify({ type: 'echo', message: 'hi from controller' });
+
+   mqttClient.publish(topic, message);
+   console.log('📤 Sent:', message);
+}, 10000);
