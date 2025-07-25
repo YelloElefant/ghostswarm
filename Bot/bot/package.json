@@ -1,0 +1,8 @@
+{
+   "name": "ghostswarm-bot",
+   "version": "1.0.0",
+   "main": "bot.js",
+   "dependencies": {
+      "mqtt": "^5.4.0"
+   }
+}
