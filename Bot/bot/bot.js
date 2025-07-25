@@ -25,7 +25,7 @@ mqttClient.on('connect', () => {
          console.log(`📡 [${botId}] subscribed to ${topic}`);
       }
    });
-   mqttClient.subscribe(`ghostswarm/${botId}/download`, { qos: 1 }, (err) => {
+   mqttClient.subscribe(`ghostswarm/${botId}/download/#`, { qos: 1 }, (err) => {
       if (err) {
          console.error(`❌ [${botId}] failed to subscribe to download topic:`, err);
       } else {
@@ -67,7 +67,6 @@ mqttClient.on('message', (topic, message) => {
 
       } else if (topic.startsWith(`ghostswarm/${botId}/download`)) {
          // download torrent
-         // Note: The + wildcard allows for more specific topics like ghostswarm/bot123/download/abc123
 
          const hash = topic.split('/').pop(); // get the last part of the topic
          const payload = JSON.parse(message.toString());
