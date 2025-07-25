@@ -1,20 +1,28 @@
 let nodes = [];
 
 async function drawSwarmGraph() {
-   const res = await fetch("/tailscale/clients");
+   const res = await fetch("/bots");
    const bots = await res.json();
 
+   console.log(bots);
+
+
    const tempNodes = bots.map(bot => ({
-      id: bot.hostname,
-      label: `${bot.hostname}\n${bot.ip}`,
-      alive: true,
+      id: bot.id,
+      label: `${bot.id}\n${bot.ip}`,
+      alive: bot.alive,
    }));
+
+   console.log("Temp nodes:", tempNodes);
 
    function arraysEqualByProps(a, b) {
       if (a.length !== b.length) return false;
-      return a.every((val, i) =>
-         val.id === b[i].id && val.label === b[i].label
-      );
+      for (let i = 0; i < a.length; i++) {
+         if (a[i].id !== b[i].id || a[i].label !== b[i].label || a[i].alive !== b[i].alive) {
+            return false;
+         }
+      }
+      return true;
    }
 
    if (arraysEqualByProps(tempNodes, nodes)) {
@@ -115,7 +123,7 @@ async function drawSwarmGraph() {
       d.alive ? "alive" : "dead"
    );
 
-   node.on("click", (event, d) => {
+   node.filter(d => d.alive).on("click", (event, d) => {
       d3.selectAll("circle").classed("selected", false);
       d3.select(event.currentTarget).select("circle").classed("selected", true);
 
