@@ -2,6 +2,8 @@ const mqtt = require('mqtt');
 
 const BOT_ID = process.env.BOT_ID || 'bot123';
 const MQTT_BROKER = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
+console.log(`🤖 [${BOT_ID}] connecting to MQTT broker at ${MQTT_BROKER}`);
+
 
 const mqttClient = mqtt.connect(MQTT_BROKER);
 
