@@ -297,6 +297,77 @@ app.post('/api/register-torrent', upload.single('torrentFile'), async (req, res)
    }
 });
 
+
+
+const TORRENT_DIR = "./torrents";
+
+app.get('/torrents', (req, res) => {
+   const files = fs.readdirSync(TORRENT_DIR).filter(f => f.endsWith('.json'));
+   const torrents = [];
+
+   for (const file of files) {
+      const fullPath = path.join(TORRENT_DIR, file);
+      try {
+         const data = JSON.parse(fs.readFileSync(fullPath));
+         torrents.push({
+            name: data.name,
+            size: data.size,
+            pieces: data.pieces.length,
+            hash: file.replace('.json', '')
+         });
+      } catch (err) {
+         console.error(`❌ Failed to parse ${file}:`, err.message);
+      }
+   }
+
+   res.json(torrents);
+});
+
+app.delete('/torrents/:infoHash', async (req, res) => {
+   const infoHash = req.params.infoHash;
+   const torrentFile = path.join(TORRENT_DIR, `${infoHash}.json`);
+   const uploadsDir = path.join('/uploads');
+
+   if (!fs.existsSync(torrentFile)) {
+      return res.status(404).json({ error: 'Torrent not found' });
+   }
+
+   // Delete the torrent file
+   fs.unlinkSync(torrentFile);
+   console.log(`🗑️ Deleted torrent: ${torrentFile}`);
+
+   // Try to delete the original uploaded file too
+   try {
+      // get file name from redis
+      const torrentData = await redis.get(`torrent:${infoHash}`);
+
+      const metadata = JSON.parse(torrentData);
+      const uploadedPath = path.join(uploadsDir, metadata.name);
+      if (fs.existsSync(uploadedPath)) {
+         fs.unlinkSync(uploadedPath);
+         console.log(`🗑️ Deleted uploaded file: ${uploadedPath}`);
+      }
+
+      // last delete the redis
+      await redis.del(`torrent:${infoHash}`);
+   } catch (err) {
+      console.warn(`⚠️ Could not delete uploaded file for ${infoHash}: ${err.message}`);
+   }
+
+   res.sendStatus(200);
+});
+
+
+
+app.get('/torrents.html', (req, res) => {
+   res.sendFile(path.join(__dirname, 'views/torrents.html'));
+}
+);
+
+
+
+
+
 // Start server
 server.listen(PORT, () => {
    console.log(`🌐 Controller UI running at http://localhost:${PORT}`);

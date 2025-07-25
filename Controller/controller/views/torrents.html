@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GhostSwarm Torrent Manager</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #0f1117;
+        color: #f2f2f2;
+        padding: 2rem;
+      }
+      h1 {
+        margin-bottom: 1rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+      }
+      th,
+      td {
+        padding: 0.6rem;
+        border-bottom: 1px solid #333;
+      }
+      button {
+        padding: 0.4rem 0.8rem;
+        background: #e63946;
+        border: none;
+        border-radius: 4px;
+        color: white;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #d62828;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🧠 GhostSwarm Torrents</h1>
+    <table id="torrentTable">
+      <thead>
+        <tr>
+          <th>Filename</th>
+          <th>Size</th>
+          <th>Pieces</th>
+          <th>Hash</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <script>
+      async function fetchTorrents() {
+        const res = await fetch("/torrents");
+        const torrents = await res.json();
+        const table = document.querySelector("#torrentTable tbody");
+        table.innerHTML = "";
+
+        torrents.forEach((t) => {
+          const row = document.createElement("tr");
+
+          row.innerHTML = `
+          <td>${t.name}</td>
+          <td>${(t.size / 1024).toFixed(1)} KB</td>
+          <td>${t.pieces}</td>
+          <td style="font-size: 0.8rem">${t.hash}</td>
+          <td><button onclick="deleteTorrent('${t.hash}')">Delete</button></td>
+        `;
+
+          table.appendChild(row);
+        });
+      }
+
+      async function deleteTorrent(hash) {
+        if (!confirm(`Are you sure you want to delete torrent ${hash}?`))
+          return;
+        const res = await fetch(`/torrents/${hash}`, { method: "DELETE" });
+
+        if (res.ok) {
+          alert("Torrent deleted successfully");
+          fetchTorrents();
+        } else {
+          alert("Failed to delete torrent");
+        }
+      }
+
+      fetchTorrents();
+    </script>
+  </body>
+</html>
