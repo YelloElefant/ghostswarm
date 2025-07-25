@@ -65,8 +65,8 @@ mqttClient.on('message', (topic, message) => {
             console.log(`📤 [${botId}] responded to status`);
          }
 
-      } else if (topic == `ghostswarm/${botId}/download/+`) {
-         // download torrent 
+      } else if (topic.startsWith(`ghostswarm/${botId}/download`)) {
+         // download torrent
          // Note: The + wildcard allows for more specific topics like ghostswarm/bot123/download/abc123
 
          const hash = topic.split('/').pop(); // get the last part of the topic
