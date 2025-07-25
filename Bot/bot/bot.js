@@ -25,6 +25,13 @@ mqttClient.on('connect', () => {
          console.log(`📡 [${botId}] subscribed to ${topic}`);
       }
    });
+   mqttClient.subscribe(`ghostswarm/${botId}/download`, { qos: 1 }, (err) => {
+      if (err) {
+         console.error(`❌ [${botId}] failed to subscribe to download topic:`, err);
+      } else {
+         console.log(`📡 [${botId}] subscribed to ghostswarm/${botId}/download`);
+      }
+   });
 });
 
 mqttClient.on('message', (topic, message) => {
