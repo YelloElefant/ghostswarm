@@ -6,23 +6,23 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
   </head>
   <body>
-    <h1>GhostSwarm Controller UI</h1>
+    <div id="graphWrapper">
+      <svg id="swarmGraph" width="800" height="500"></svg>
+    </div>
 
-    <h2>Live Swarm View</h2>
-    <svg id="swarmGraph" width="800" height="500"></svg>
+    <div id="sidePanel">
+      <h2>Send Command</h2>
+      <form id="cmdForm">
+        <label>Bot ID:</label>
+        <input type="text" id="botId" required />
 
-    <h2>Send Command to Bot</h2>
-    <form id="cmdForm">
-      <label for="botSelect">Bot:</label>
-      <input id="botId" type="text" placeholder="Bot ID" required />
+        <label>Command:</label>
+        <input type="text" id="cmdInput" placeholder="e.g. uptime" required />
 
-      <label for="cmdInput">Command:</label>
-      <input type="text" id="cmdInput" placeholder="e.g. uptime" required />
-
-      <button type="submit">Send</button>
-    </form>
-
-    <pre id="cmdOutput"></pre>
+        <button type="submit">Send</button>
+        <pre id="cmdOutput"></pre>
+      </form>
+    </div>
     <script src="/index.js"></script>
   </body>
 </html>

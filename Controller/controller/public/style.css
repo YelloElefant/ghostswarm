@@ -1,3 +1,8 @@
+* {
+   color: white;
+   box-sizing: border-box;
+}
+
 body {
    font-family: sans-serif;
    padding: 1rem;
@@ -6,4 +11,123 @@ body {
 input,
 button {
    margin: 0.5rem;
+}
+
+body {
+   margin: 0;
+   background: #111;
+   overflow: hidden;
+   font-family: sans-serif;
+}
+
+#graphWrapper {
+   width: 100%;
+   height: 100vh;
+   /* or set px if you prefer */
+}
+
+#swarmGraph {
+   width: 100%;
+   height: 100%;
+}
+
+
+.node circle {
+   stroke: #fff;
+   stroke-width: 1.5px;
+}
+
+.node text {
+   fill: white;
+   font-size: 12px;
+   pointer-events: none;
+   text-anchor: middle;
+   alignment-baseline: middle;
+}
+
+.link {
+   stroke: #666;
+   stroke-opacity: 0.6;
+}
+
+.alive {
+   fill: #28e96a;
+   animation: pulse 1.2s infinite;
+}
+
+.dead {
+   fill: #444;
+}
+
+@keyframes pulse {
+   0% {
+      r: 8;
+   }
+
+   50% {
+      r: 11;
+   }
+
+   100% {
+      r: 8;
+   }
+}
+
+circle.selected {
+   stroke: #fffb00;
+   stroke-width: 3px;
+}
+
+#sidePanel {
+   position: fixed;
+   top: 0;
+   right: -400px;
+   /* hidden by default */
+   width: 400px;
+   height: 100%;
+   background: #1a1a1a;
+   color: #fff;
+   padding: 20px;
+   box-shadow: -2px 0 8px rgba(0, 0, 0, 0.4);
+   transition: right 0.3s ease;
+   z-index: 1000;
+   overflow-y: auto;
+}
+
+#sidePanel.open {
+   right: 0;
+   /* slide in */
+}
+
+#sidePanel label {
+   display: block;
+   margin-top: 15px;
+   font-weight: bold;
+}
+
+#sidePanel input {
+   width: 100%;
+   padding: 6px;
+   margin-top: 5px;
+   background: #333;
+   border: none;
+   color: #fff;
+}
+
+#sidePanel button {
+   margin-top: 20px;
+   padding: 10px 20px;
+   background: #28e96a;
+   border: none;
+   color: #000;
+   font-weight: bold;
+   cursor: pointer;
+}
+
+#sidePanel pre {
+   margin-top: 20px;
+   font-size: 12px;
+   background: #222;
+   padding: 10px;
+   white-space: pre-wrap;
 }

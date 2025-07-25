@@ -63,44 +63,17 @@ mqttClient.on('message', async (topic, message) => {
 
 // Send command to bot
 app.post('/send', async (req, res) => {
-   const { botId, command, payload } = req.body;
+   const { topic, command, payload, botId } = req.body;
 
    if (!botId || !command) {
       return res.status(400).json({ error: 'botId and command required' });
    }
 
-   const topic = `ghostswarm/${botId}/command`;
-   const msg = { type: command, ...payload };
-
-   mqttClient.publish(topic, JSON.stringify(msg), { qos: 1 }, async (err) => {
-      if (err) return res.status(500).json({ error: 'MQTT publish failed' });
-
-      await redis.lpush(`log:${botId}`, JSON.stringify({ ts: Date.now(), msg }));
-      res.json({ status: 'sent', to: botId, msg });
-   });
-});
-
-
-app.post('/bot/:botId', async (req, res) => {
-   const botId = req.params.botId;
-   const { command, payload } = req.body;
-
-   if (!command) {
-      return res.status(400).json({ error: 'Command required' });
-   }
-
-   const msg = {
-      type: command,
-      requestId: `req-${Date.now()}`, // unique ID for response tracking
-      ...payload,
-   };
-
-   const topic = `ghostswarm/${botId}/command`;
+   const msg = { type: command, requestId: `req-${Date.now()}`, ...payload };
    const responseKey = `resp:${botId}:${msg.requestId}`;
 
    console.log(`📤 Sending command to ${botId}:`, msg);
 
-   // Send MQTT command to bot
    mqttClient.publish(topic, JSON.stringify(msg), { qos: 1 }, async (err) => {
       if (err) return res.status(500).json({ error: 'Failed to send command' });
 
@@ -122,6 +95,8 @@ app.post('/bot/:botId', async (req, res) => {
       }
    });
 });
+
+
 
 // Get Tailscale clients
 app.get('/tailscale/clients', (req, res) => {
@@ -148,6 +123,18 @@ app.get('/tailscale/clients', (req, res) => {
          res.status(500).json({ error: 'Malformed Tailscale JSON' });
       }
    });
+});
+
+
+app.get('/bot/:botId', async (req, res) => {
+   const botId = req.params.botId;
+
+   if (!botId) {
+      return res.status(400).json({ error: 'botId is required' });
+   }
+
+
+
 });
 
 
