@@ -99,6 +99,10 @@ circle.selected {
    /* slide in */
 }
 
+
+
+
+
 #sidePanel label {
    display: block;
    margin-top: 15px;
@@ -130,4 +134,48 @@ circle.selected {
    background: #222;
    padding: 10px;
    white-space: pre-wrap;
+}
+
+#rightSidePanel {
+   position: fixed;
+   top: 0;
+   left: 0px;
+   /* hidden by default */
+   width: 100px;
+   height: 100%;
+   background: #1a1a1a;
+   color: #fff;
+   padding: 20px;
+   box-shadow: -2px 0 8px rgba(0, 0, 0, 0.4);
+   transition: right 0.3s ease;
+   z-index: 1000;
+   overflow-y: auto;
+
+   display: flex;
+   flex-direction: column;
+
+
+}
+
+#rightSidePanel a {
+   display: flex;
+   justify-content: center;
+   align-items: center;
+   height: 60px;
+   border: #333 1px solid;
+   border-radius: 500px;
+   margin-bottom: 10px;
+   text-decoration: none;
+   transition: background 0.3s ease;
+}
+
+#rightSidePanel a:hover {
+   background: #333;
+}
+
+a icon {
+   color: #28e96a;
+   text-decoration: none;
+   font-size: 24px;
+   text-align: center;
 }
