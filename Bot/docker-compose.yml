@@ -1,14 +1,11 @@
 services:
   bot:
-    build: ./bot
+    build: .
     container_name: ghostswarm-bot1
     environment:
       - BOT_ID=bigppserver2
       - MQTT_BROKER_URL=mqtt://100.76.233.82:1883
     volumes:
       - /etc/hostname:/host_hostname:ro
-      - ./uploads:/uploads
-      - ./torrents:/torrents
-      - ./peices:/pieces
-      - ./swarm:/swarm
+      - ./data:/data
     restart: unless-stopped

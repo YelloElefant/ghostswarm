@@ -4,9 +4,13 @@ const path = require('path');
 const crypto = require('crypto');
 const http = require('http');
 
+const config = require("../config.js");
+const PATHS = config.PATHS;
+const DOWNLOAD_CONFIG = config.DOWNLOAD_CONFIG;
+
 let botId;
 try {
-   botId = fs.readFileSync("/host_hostname", "utf8").trim();
+   botId = fs.readFileSync(PATHS.HOST_HOSTNAME, "utf8").trim();
 } catch {
    botId = require("os").hostname(); // fallback
 }
@@ -14,11 +18,11 @@ try {
 let mqtt;
 
 function handleTorrentDownload(infoHash, payload) {
-   const torrentPath = path.join('/torrents', `${infoHash}.ghostswarm`);
+   const torrentPath = path.join(PATHS.TORRENTS_DIR, `${infoHash}${PATHS.TORRENT_EXTENSION}`);
    fs.mkdirSync(path.dirname(torrentPath), { recursive: true });
    fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
 
-   const outDir = path.join('/pieces', infoHash);
+   const outDir = path.join(PATHS.PIECES_DIR, infoHash);
    fs.mkdirSync(outDir, { recursive: true });
 
    console.log(JSON.stringify(payload, null, 2));
@@ -35,7 +39,7 @@ function handleTorrentDownload(infoHash, payload) {
       const pieceIndex = piece.index;
       const pieceHash = piece.hash;
 
-      requestPiece("100.76.233.82", 5000, infoHash, pieceIndex, (err, buffer) => {
+      requestPiece(DOWNLOAD_CONFIG.CONTROLLER_IP, DOWNLOAD_CONFIG.CONTROLLER_PORT, infoHash, pieceIndex, (err, buffer) => {
          if (err) {
             console.error(`❌ Failed to download piece ${pieceIndex} of ${infoHash}:`, err);
             return;
@@ -69,10 +73,10 @@ function handleTorrentDownload(infoHash, payload) {
 
 function combineIntorrent(infoHash, payload) {
    // Combine pieces into final file
-   const piecePath = path.join("/pieces", infoHash);
-   const finalFile = path.join("/uploads", payload.name);
+   const piecePath = path.join(PATHS.PIECES_DIR, infoHash);
+   const finalFile = path.join(PATHS.UPLOADS_DIR, payload.name);
 
-   fs.mkdirSync("/uploads", { recursive: true });
+   fs.mkdirSync(PATHS.UPLOADS_DIR, { recursive: true });
 
    console.log(`🔄 Starting to combine ${payload.pieces.length} pieces into ${finalFile}`);
 

