@@ -9,19 +9,19 @@ const fs = require('fs');
 const PORT = process.env.WEB_PORT || 3000;
 
 
-const { redis } = require('../app/redis/redis'); // Import Redis client
+const { redis } = require('./redis/redis'); // Import Redis client
 const swarmMap = new Map(); // Store bot info by ID
 
 
 // MQTT client setup
-const { startMQTT } = require('../app/mqtt/client'); // Import your MQTT client setup
+const { startMQTT } = require('./mqtt/client'); // Import your MQTT client setup
 const mqttClient = startMQTT();
 
-const { startDeadCheck } = require('../app/utils/deadCheck'); // Import WebSocket server setup
+const { startDeadCheck } = require('./utils/deadCheck'); // Import WebSocket server setup
 startDeadCheck(swarmMap);
 
 // Import API routes
-const { router: apiRoutes, initApiRoutes } = require('../app/api');
+const { router: apiRoutes, initApiRoutes } = require('./api');
 
 // Static & view setup
 const app = express();

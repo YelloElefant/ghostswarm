@@ -2,6 +2,7 @@
 const fs = require('fs');
 const crypto = require('crypto');
 const path = require('path');
+const config = require('../config');
 
 async function registerTorrent(filepath) {
    try {
@@ -28,7 +29,7 @@ async function registerTorrent(filepath) {
       };
 
       const infoHash = crypto.createHash('sha1').update(JSON.stringify(info)).digest('hex');
-      const torrentPath = path.join(__dirname, 'torrents', `${infoHash}.json`);
+      const torrentPath = path.join(config.TORRENTS_DIR, `${infoHash}` + config.TORRENT_EXTENSION);
 
       // Ensure torrents directory exists
       fs.mkdirSync(path.dirname(torrentPath), { recursive: true });

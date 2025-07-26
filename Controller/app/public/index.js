@@ -1,7 +1,7 @@
 let nodes = [];
 
 async function drawSwarmGraph() {
-   const res = await fetch("/bots");
+   const res = await fetch("api/bots/");
    const bots = await res.json();
 
    console.log(bots);

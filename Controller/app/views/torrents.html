@@ -55,7 +55,7 @@
 
     <script>
       async function fetchTorrents() {
-        const res = await fetch("/torrents");
+        const res = await fetch("/api/torrents/");
         const torrents = await res.json();
         const table = document.querySelector("#torrentTable tbody");
         table.innerHTML = "";

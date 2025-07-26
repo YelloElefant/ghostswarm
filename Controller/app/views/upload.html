@@ -20,7 +20,7 @@
         const formData = new FormData();
         formData.append("torrentFile", fileInput.files[0]);
 
-        const res = await fetch("/api/register-torrent", {
+        const res = await fetch("/api/torrents/register", {
           method: "POST",
           body: formData,
         });

@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
 
   controller:
-    build: ./controller
+    build: ./app
     container_name: ghostswarm-controller
     environment:
       - REDIS_HOST=redis
@@ -35,7 +35,7 @@ services:
       - mqtt
     restart: unless-stopped
     volumes:
-      - ./controller:/app
-      - ./uploads:/uploads
+      - ./app:/app
+      - ./data:/data
       - /home/yelloelefant/tailscale/data:/var/lib/tailscale
       - /var/run/tailscale:/var/run/tailscale
