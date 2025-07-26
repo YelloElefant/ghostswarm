@@ -14,9 +14,11 @@ const { executeShellCommand } = require("./commands/commands");
 const botId = config.mqtt.botId;
 
 console.log(`🤖 [${botId}] connecting to MQTT broker at ${MQTT_BROKER}`);
-const mqttClient = startMQTT()
+const mqttClient = startMQTT();
 startHeartbeat(mqttClient);
-checkForTorrents();
+setTimeout(() => {
+   checkForTorrents();
+}, 5000); // Wait a bit before checking for torrents
 
 mqttClient.on('message', (topic, message) => {
    console.log("message received on topic:", topic);
