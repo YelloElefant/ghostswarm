@@ -18,7 +18,9 @@ const { startMQTT } = require('./mqtt/client'); // Import your MQTT client setup
 const mqttClient = startMQTT();
 
 const { startDeadCheck } = require('./utils/deadCheck'); // Import WebSocket server setup
-startDeadCheck(swarmMap);
+startDeadCheck(swarmMap, redis);
+
+const { checkForTorrents } = require('./torrent/torrent'); // Import torrent utility functions
 
 // Import API routes
 const { router: apiRoutes, initApiRoutes } = require('./api');
@@ -96,34 +98,7 @@ mqttClient.on('message', async (topic, message) => {
    else if (topic.startsWith('ghostswarm/') && topic.endsWith('/check/torrents')) {
       // get all torrents from Redis
       const botId = topic.split('/')[1];
-      const torrents = await redis.keys('torrent:*');
-      const torrentData = await Promise.all(torrents.map(async (key) => {
-         const data = await redis.get(key);
-         // return JSON.parse(data);
-         // return json which is infohash: data
-         const torrentInfo = JSON.parse(data);
-         return {
-            infoHash: key.split(':')[1], // Extract infoHash from key
-            data: torrentInfo
-         }
-      }
-      ));
-      console.log(`📥 Torrent check request from ${botId}, found ${torrents.length} torrents`);
-      // get infoHash of each torrent
-      const torrentInfoHashes = torrentData.map(t => t.infoHash);
-      console.log("Sending: ", torrentInfoHashes);
-
-      // Send back torrent data
-      const responseTopic = `ghostswarm/${botId}/download`;
-      torrentData.forEach(torrent => {
-         mqttClient.publish(responseTopic + `/${torrent.infoHash}`, JSON.stringify(torrent.data), { qos: 1 }, (err) => {
-            if (err) {
-               console.error(`❌ Failed to send torrent data to ${botId}:`, err);
-            } else {
-               console.log(`📤 Sent torrent data to ${botId}:`, torrent.infoHash);
-            }
-         });
-      });
+      checkForTorrents(mqttClient, redis, botId);
    }
 
    else if (topic.startsWith('ghostswarm/') && topic.endsWith('/torrent/delete')) {

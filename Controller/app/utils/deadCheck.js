@@ -1,4 +1,4 @@
-function startDeadCheck(swarmMap) {
+function startDeadCheck(swarmMap, redis) {
    setInterval(() => {
       const now = Date.now();
       swarmMap.forEach((status, botId) => {
