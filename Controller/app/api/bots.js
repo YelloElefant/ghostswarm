@@ -33,7 +33,9 @@ router.post('/:botId/command', async (req, res) => {
       }
 
       const { botId } = req.params;
-      const { command } = req.body;
+      const data = req.body;
+      const command = data.command;
+      const type = data.type || 'shell';
 
       if (!command) {
          return res.status(400).json({ error: 'Command is required' });
@@ -42,10 +44,12 @@ router.post('/:botId/command', async (req, res) => {
       const requestId = Date.now().toString();
       const topic = `ghostswarm/${botId}/command`;
       const payload = {
-         type: 'shell',
+         type: type,
          cmd: command,
          requestId
       };
+
+      console.log(`📤 Sending command to ${botId}:`, payload);
 
       mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 }, async (err) => {
          if (err) {

@@ -69,7 +69,9 @@ mqttClient.on('message', async (topic, message) => {
             client.send(JSON.stringify({ topic, payload, timestamp: Date.now() }));
          }
       });
-   } else if (topic.startsWith('ghostswarm/status/')) {
+   }
+
+   else if (topic.startsWith('ghostswarm/status/')) {
       // Handle general status messages
       const payload = message.toString();
       const data = JSON.parse(payload);
@@ -89,7 +91,9 @@ mqttClient.on('message', async (topic, message) => {
 
 
 
-   } else if (topic.startsWith('ghostswarm/') && topic.endsWith('/check/torrents')) {
+   }
+
+   else if (topic.startsWith('ghostswarm/') && topic.endsWith('/check/torrents')) {
       // get all torrents from Redis
       const botId = topic.split('/')[1];
       const torrents = await redis.keys('torrent:*');
@@ -120,6 +124,25 @@ mqttClient.on('message', async (topic, message) => {
             }
          });
       });
+   }
+
+   else if (topic.startsWith('ghostswarm/') && topic.endsWith('/torrent/delete')) {
+      const infoHash = topic.split('/')[3];
+      console.log(`📥 Received torrent delete request for ${infoHash}`);
+      deleteTorrent(infoHash, mqttClient)
+         .then(() => {
+            console.log(`📂 Deleted torrent ${infoHash}`);
+         })
+         .catch(err => {
+            console.error(`❌ Failed to delete torrent ${infoHash}:`, err);
+            // Send error response
+            const statusTopic = `ghostswarm/${botId}/status`;
+            mqttClient.publish(statusTopic, JSON.stringify({
+               status: "error",
+               error: err.message,
+               time: Date.now()
+            }));
+         });
    }
 
 

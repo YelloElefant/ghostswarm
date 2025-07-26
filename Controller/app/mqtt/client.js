@@ -20,6 +20,10 @@ function startMQTT() {
          if (err) console.error('❌ MQTT download sub failed:', err);
          else console.log('📡 Subscribed to torrent check messages');
       });
+      client.subscribe('ghostswarm/+/torrent/delete/#', { qos: 1 }, (err) => {
+         if (err) console.error('❌ MQTT download sub failed:', err);
+         else console.log('📡 Subscribed to download requests');
+      });
    });
 
    return client;
