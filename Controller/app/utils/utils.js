@@ -1,8 +1,8 @@
 const { exec } = require('child_process');
 
-function getBots(redis) {
+async function getBots(redis) {
    return new Promise((resolve) => {
-      exec('tailscale status --json', (err, stdout) => {
+      exec('tailscale status --json', async (err, stdout) => {
          if (err) {
             console.error('❌ Tailscale status error:', err);
             return resolve([]);
@@ -11,11 +11,24 @@ function getBots(redis) {
          try {
             const data = JSON.parse(stdout);
             const peers = data.Peer || {};
-            const online = Object.entries(peers)
-               .filter(([_, p]) => p.Online)
-               .map(([_, p]) => {
+            const onlinePeers = Object.entries(peers).filter(([_, p]) => p.Online);
+
+            // Use Promise.all to handle async operations properly
+            const online = await Promise.all(
+               onlinePeers.map(async ([_, p]) => {
                   const botId = p.HostName;
-                  const status = redis.get(`status:${botId}`) || { status: 'unknown', lastSeen: Date.now() };
+                  let status = { status: 'dead', lastSeen: Date.now() };
+
+                  try {
+                     const redisData = await redis.get(`status:${botId}`);
+                     if (redisData) {
+                        status = JSON.parse(redisData);
+                     }
+                  } catch (e) {
+                     console.warn(`⚠️ Failed to get status for ${botId}:`, e.message);
+                  }
+
+                  console.log(`Bot ${botId} status:`, status);
 
                   return {
                      id: botId,
@@ -23,7 +36,8 @@ function getBots(redis) {
                      alive: status.status === "alive",
                      lastSeen: status.lastSeen ? new Date(status.lastSeen).toLocaleString() : 'unknown',
                   };
-               });
+               })
+            );
 
             resolve(online);
          } catch (e) {
