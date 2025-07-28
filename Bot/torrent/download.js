@@ -211,6 +211,12 @@ function combineIntorrent(infoHash, payload) {
             console.warn(`⚠️ File size mismatch! Expected ${payload.size}, got ${stats.size}`);
          }
       }
+
+      // Clean up pieces directory
+      if (fs.existsSync(piecePath)) {
+         fs.rmSync(piecePath, { recursive: true });
+         console.log(`🗑️ Cleaned up pieces directory: ${piecePath}`);
+      }
    });
 
    // Write pieces in order
