@@ -152,8 +152,27 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
 
          // Check if all pieces are downloaded
          if (downloadProgress.completed === downloadProgress.total) {
-            console.log(`🎉 All pieces downloaded for ${infoHash}, combining...`);
-            combineIntorrent(infoHash, payload);
+            const allExist = payload.pieces.every(p =>
+               fs.existsSync(path.join(PATHS.PIECES_DIR, infoHash, `${p.index}.part`))
+            );
+            if (allExist) {
+               console.log(`🎉 All pieces downloaded and present for ${infoHash}, combining...`);
+               combineIntorrent(infoHash, payload);
+            } else {
+               console.warn(`⚠️ All pieces marked complete, but not all files found yet for ${infoHash}. Waiting...`);
+               // Try again in a short delay
+               setTimeout(() => {
+                  const retryAllExist = payload.pieces.every(p =>
+                     fs.existsSync(path.join(PATHS.PIECES_DIR, infoHash, `${p.index}.part`))
+                  );
+                  if (retryAllExist) {
+                     console.log(`🎉 Retried check passed for ${infoHash}, combining...`);
+                     combineIntorrent(infoHash, payload);
+                  } else {
+                     console.error(`❌ Retry failed, some piece files still missing for ${infoHash}`);
+                  }
+               }, 1000); // or more
+            }
          }
       });
    });
