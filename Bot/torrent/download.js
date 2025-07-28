@@ -43,9 +43,11 @@ function handleTorrentDownload(infoHash, payload) {
    // get swarm map from tracker
    const swarmUrl = `http://${DOWNLOAD_CONFIG.CONTROLLER_IP}:${DOWNLOAD_CONFIG.TRACKER_PORT}/swarm/${infoHash}`;
    http.get(swarmUrl, res => {
+      let peers = getPeers();
+
       if (res.statusCode !== 200) {
-         console.error(`❌ Failed to fetch swarm map for ${infoHash}: ${res.statusCode} `);
-         return;
+         console.error(`❌ Failed to fetch swarm map for ${infoHash}: ${res.statusCode} ... starting download from controller`);
+         downloadPieces(payload, swarmMap, peers, infoHash, outDir);
       }
 
       // save response to file
@@ -88,68 +90,71 @@ function handleTorrentDownload(infoHash, payload) {
          }
 
 
-         let peers = getPeers();
 
 
          // download each piece
-         payload.pieces.forEach(piece => {
-            const pieceIndex = piece.index;
-            const pieceHash = piece.hash;
+         downloadPieces(payload, swarmMap, peers, infoHash, outDir);
 
-            // get list of bots that have this piece
-            const botsWithPiece = swarmMap[pieceIndex] || [];
-            console.log(`🔍 Bots with piece ${pieceIndex} of ${infoHash}:`, botsWithPiece);
+      });
+   });
+}
 
-            // randomly select a bot from the list
-            let pickedPeer;
-            if (botsWithPiece.length === 0) {
-               console.warn(`⚠️ No bots available for piece ${pieceIndex} of ${infoHash}, downloading from controller`);
-               pickedPeer = { ip: DOWNLOAD_CONFIG.CONTROLLER_IP, port: DOWNLOAD_CONFIG.CONTROLLER_PORT };
-            } else {
-               peerid = botsWithPiece[Math.floor(Math.random() * botsWithPiece.length)];
-               pickedPeer = peers.find(p => p.id === peerid);
-               if (!pickedPeer) {
-                  console.warn(`⚠️ No valid peer found for ID ${peerid}, downloading from controller`);
-                  pickedPeer = { ip: DOWNLOAD_CONFIG.CONTROLLER_IP, port: DOWNLOAD_CONFIG.CONTROLLER_PORT };
-               }
-               pickedPeer["port"] = 5000;
-               console.log(`🔄 Requesting piece ${pieceIndex} of ${infoHash} from ${pickedPeer}`);
-            }
+function downloadPieces(payload, swarmMap, peers, infoHash, outDir) {
+   payload.pieces.forEach(piece => {
+      const pieceIndex = piece.index;
+      const pieceHash = piece.hash;
 
+      // get list of bots that have this piece
+      const botsWithPiece = swarmMap[pieceIndex] || [];
+      console.log(`🔍 Bots with piece ${pieceIndex} of ${infoHash}:`, botsWithPiece);
 
-            peers = getPeers();
+      // randomly select a bot from the list
+      let pickedPeer;
+      if (botsWithPiece.length === 0) {
+         console.warn(`⚠️ No bots available for piece ${pieceIndex} of ${infoHash}, downloading from controller`);
+         pickedPeer = { ip: DOWNLOAD_CONFIG.CONTROLLER_IP, port: DOWNLOAD_CONFIG.CONTROLLER_PORT };
+      } else {
+         peerid = botsWithPiece[Math.floor(Math.random() * botsWithPiece.length)];
+         pickedPeer = peers.find(p => p.id === peerid);
+         if (!pickedPeer) {
+            console.warn(`⚠️ No valid peer found for ID ${peerid}, downloading from controller`);
+            pickedPeer = { ip: DOWNLOAD_CONFIG.CONTROLLER_IP, port: DOWNLOAD_CONFIG.CONTROLLER_PORT };
+         }
+         pickedPeer["port"] = 5000;
+         console.log(`🔄 Requesting piece ${pieceIndex} of ${infoHash} from ${pickedPeer}`);
+      }
 
-            requestPiece(pickedPeer.ip, pickedPeer.port, infoHash, pieceIndex, (err, buffer) => {
-               if (err) {
-                  console.error(`❌ Failed to download piece ${pieceIndex} of ${infoHash}: `, err);
-                  return;
-               }
+      // update peers 
+      peers = getPeers();
 
-               const pieceFile = path.join(outDir, `${pieceIndex}.part`);
-               fs.writeFileSync(pieceFile, buffer);
+      requestPiece(pickedPeer.ip, pickedPeer.port, infoHash, pieceIndex, (err, buffer) => {
+         if (err) {
+            console.error(`❌ Failed to download piece ${pieceIndex} of ${infoHash}: `, err);
+            return;
+         }
 
-               // Verify hash
-               const hash = crypto.createHash('sha1').update(buffer).digest('hex');
-               if (hash !== pieceHash) {
-                  console.log(`❌ Hash mismatch for piece ${pieceIndex} of ${infoHash}: expected ${pieceHash}, got ${hash} `);
-                  return;
-               }
+         const pieceFile = path.join(outDir, `${pieceIndex}.part`);
+         fs.writeFileSync(pieceFile, buffer);
 
-               console.log(`✅ Successfully downloaded and verified piece ${pieceIndex} of ${infoHash} `);
-               announceHave(infoHash, pieceIndex);
+         // Verify hash
+         const hash = crypto.createHash('sha1').update(buffer).digest('hex');
+         if (hash !== pieceHash) {
+            console.log(`❌ Hash mismatch for piece ${pieceIndex} of ${infoHash}: expected ${pieceHash}, got ${hash} `);
+            return;
+         }
 
-               // Track progress
-               downloadProgress.pieces.add(pieceIndex);
-               downloadProgress.completed++;
+         console.log(`✅ Successfully downloaded and verified piece ${pieceIndex} of ${infoHash} `);
+         announceHave(infoHash, pieceIndex);
 
-               // Check if all pieces are downloaded
-               if (downloadProgress.completed === downloadProgress.total) {
-                  console.log(`🎉 All pieces downloaded for ${infoHash}, combining...`);
-                  combineIntorrent(infoHash, payload);
-               }
-            });
-         });
+         // Track progress
+         downloadProgress.pieces.add(pieceIndex);
+         downloadProgress.completed++;
 
+         // Check if all pieces are downloaded
+         if (downloadProgress.completed === downloadProgress.total) {
+            console.log(`🎉 All pieces downloaded for ${infoHash}, combining...`);
+            combineIntorrent(infoHash, payload);
+         }
       });
    });
 }
