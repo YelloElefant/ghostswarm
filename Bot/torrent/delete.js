@@ -6,16 +6,21 @@ const fs = require('fs');
 
 function deleteTorrent(hash, mqtt) {
    // delete torrent from /data/torrents and the uploaded file and the pieces dir and the swarm json
-   const torrentFile = `${config.TORRENT_DIR}/${hash}${config.TORRENT_EXTENSION}`;
-   const uploadsDir = `${config.PATHS.UPLOADS_DIR}/${hash}`;
-   const piecesDir = `${config.PATHS.PIECES_DIR}/${hash}`;
+   const torrentFile = `${config.PATHS.TORRENTS_DIR}/${hash}${config.PATHS.TORRENT_EXTENSION}`;
+   const uploadsDir = `${config.PATHS.UPLOADS_DIR}/`;
    const swarmFile = `${config.PATHS.SWARM_DIR}/${hash}.json`;
 
+   // Read the torrent file to get metadata
+   let torrentData;
+   if (fs.existsSync(torrentFile)) {
+      torrentData = JSON.parse(fs.readFileSync(torrentFile, 'utf8'));
+      console.log(`📥 Deleting torrent: ${torrentData.name} (${hash})`);
+   }
+
    // delete the files and directories
-   fs.unlinkSync(torrentFile);
-   fs.rmdirSync(uploadsDir, { recursive: true });
-   fs.rmdirSync(piecesDir, { recursive: true });
-   fs.unlinkSync(swarmFile);
+   fs.rmSync(torrentFile);
+   fs.rmSync(uploadsDir + torrentData.name, { recursive: true });
+   fs.rmSync(swarmFile);
    console.log(`🗑️ Deleted torrent and associated files for ${hash}`);
 
    // Notify the controller via MQTT

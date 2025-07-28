@@ -132,8 +132,16 @@ router.delete('/:infoHash', async (req, res) => {
 
       // Delete from Redis
       await redis.del(`torrent:${infoHash}`);
+      await redis.del(`swarm:${infoHash}`);
+
       await redis.del(`status:${infoHash}`); // If you store status separately
       console.log(`🗑️ Deleted torrent from Redis: ${infoHash}`);
+
+
+      // Send MQTT message to all bots to delete the torrent
+      const deleteTopic = `ghostswarm/torrent/delete/${infoHash}`;
+      mqttClient.publish(deleteTopic, JSON.stringify({ infoHash }), { qos: 1 });
+      console.log(`📤 Published delete request for ${infoHash} to ${deleteTopic}`);
 
       res.json({ success: true, message: 'Torrent deleted successfully' });
    } catch (err) {

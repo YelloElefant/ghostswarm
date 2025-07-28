@@ -62,20 +62,7 @@ mqttClient.on('message', (topic, message) => {
 
          const infoHash = topic.split('/')[3];
          console.log(`📥 [${botId}] received torrent delete request for ${infoHash}`);
-         deleteTorrent(infoHash, mqttClient)
-            .then(() => {
-               console.log(`📂 [${botId}] deleted torrent ${infoHash}`);
-            })
-            .catch(err => {
-               console.error(`❌ [${botId}] failed to delete torrent ${infoHash}:`, err);
-               // Send error response
-               const statusTopic = `ghostswarm/${botId}/status`;
-               mqttClient.publish(statusTopic, JSON.stringify({
-                  status: "error",
-                  error: err.message,
-                  time: Date.now()
-               }));
-            });
+         deleteTorrent(infoHash, mqttClient);
       }
 
       else if (topic.startsWith('ghostswarm/peers')) {
