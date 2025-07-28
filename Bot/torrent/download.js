@@ -98,6 +98,8 @@ function handleTorrentDownload(infoHash, payload) {
 
             // get list of bots that have this piece
             const botsWithPiece = swarmMap[pieceIndex] || [];
+            console.log(`🔍 Bots with piece ${pieceIndex} of ${infoHash}:`, botsWithPiece);
+
             // randomly select a bot from the list
             let pickedPeer;
             if (botsWithPiece.length === 0) {
@@ -110,7 +112,7 @@ function handleTorrentDownload(infoHash, payload) {
                   console.warn(`⚠️ No valid peer found for ID ${peerid}, downloading from controller`);
                   pickedPeer = { ip: DOWNLOAD_CONFIG.CONTROLLER_IP, port: DOWNLOAD_CONFIG.CONTROLLER_PORT };
                }
-               pickedPeer[port] = 5000;
+               pickedPeer["port"] = 5000;
                console.log(`🔄 Requesting piece ${pieceIndex} of ${infoHash} from ${pickedPeer}`);
             }
 
