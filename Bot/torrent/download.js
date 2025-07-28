@@ -47,7 +47,7 @@ function handleTorrentDownload(infoHash, payload) {
 
       if (res.statusCode !== 200) {
          console.error(`❌ Failed to fetch swarm map for ${infoHash}: ${res.statusCode} ... starting download from controller`);
-         downloadPieces(payload, swarmMap, peers, infoHash, outDir);
+         downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProgress);
       }
 
       // save response to file
@@ -93,13 +93,13 @@ function handleTorrentDownload(infoHash, payload) {
 
 
          // download each piece
-         downloadPieces(payload, swarmMap, peers, infoHash, outDir);
+         downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProgress);
 
       });
    });
 }
 
-function downloadPieces(payload, swarmMap, peers, infoHash, outDir) {
+function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProgress) {
    payload.pieces.forEach(piece => {
       const pieceIndex = piece.index;
       const pieceHash = piece.hash;
