@@ -4,6 +4,7 @@
    "main": "bot.js",
    "dependencies": {
       "mqtt": "^5.4.0",
-      "child_process": "^1.0.2"
+      "child_process": "^1.0.2",
+      "express": "^4.18.2"
    }
 }

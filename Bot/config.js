@@ -38,5 +38,6 @@ module.exports = {
       CONTROLLER_IP: "100.76.233.82",           // IP of the controller/seeder
       CONTROLLER_PORT: 5000,                     // Port of the controller/seeder
       TRACKER_PORT: 5001,                  // Port of the tracker service
-   }
+   },
+   SEED_PORT: 5000, // Port for the seeder service
 };

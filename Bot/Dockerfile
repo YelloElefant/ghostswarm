@@ -11,8 +11,10 @@ COPY commands/ ./commands/
 COPY heartbeat/ ./heartbeat/
 COPY mqtt/ ./mqtt/
 COPY torrent/ ./torrent/
+COPY seed.js ./
+COPY start.sh ./
 
 
 
 
-CMD ["node", "bot.js"]
+CMD ["sh", "start.sh"]
