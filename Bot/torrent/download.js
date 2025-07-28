@@ -89,13 +89,36 @@ function handleTorrentDownload(infoHash, payload) {
       });
    });
 
+   let peers = getPeers();
+
 
    // download each piece
    payload.pieces.forEach(piece => {
       const pieceIndex = piece.index;
       const pieceHash = piece.hash;
 
-      requestPiece(DOWNLOAD_CONFIG.CONTROLLER_IP, DOWNLOAD_CONFIG.CONTROLLER_PORT, infoHash, pieceIndex, (err, buffer) => {
+      // get list of bots that have this piece
+      const botsWithPiece = swarmMap[pieceIndex] || [];
+      // randomly select a bot from the list
+      let pickedPeer;
+      if (botsWithPiece.length === 0) {
+         console.warn(`⚠️ No bots available for piece ${pieceIndex} of ${infoHash}, downloading from controller`);
+         pickedPeer = { ip: DOWNLOAD_CONFIG.CONTROLLER_IP, port: DOWNLOAD_CONFIG.CONTROLLER_PORT };
+      } else {
+         peerid = botsWithPiece[Math.floor(Math.random() * botsWithPiece.length)];
+         pickedPeer = peers.find(p => p.id === peerid);
+         if (!pickedPeer) {
+            console.warn(`⚠️ No valid peer found for ID ${peerid}, downloading from controller`);
+            pickedPeer = { ip: DOWNLOAD_CONFIG.CONTROLLER_IP, port: DOWNLOAD_CONFIG.CONTROLLER_PORT };
+         }
+         pickedPeer[port] = 5000;
+         console.log(`🔄 Requesting piece ${pieceIndex} of ${infoHash} from ${pickedPeer}`);
+      }
+
+
+      peers = getPeers();
+
+      requestPiece(pickedPeer.ip, pickedPeer.port, infoHash, pieceIndex, (err, buffer) => {
          if (err) {
             console.error(`❌ Failed to download piece ${pieceIndex} of ${infoHash}: `, err);
             return;
@@ -247,6 +270,25 @@ async function download(torrent, hash, client) {
 
    mqtt = client;
    handleTorrentDownload(infoHash, torrent);
+}
+
+
+function getPeers() {
+   let peers;
+   fs.readFile(PATHS.PEER_FILE, 'utf8', (err, data) => {
+      if (err) {
+         console.error(`❌ Failed to read peer file: `, err);
+         return;
+      }
+      let peers;
+      try {
+         peers = JSON.parse(data);
+      } catch (parseError) {
+         console.error(`❌ Failed to parse peer file: `, parseError);
+         return;
+      }
+   });
+   return peers || [];
 }
 
 module.exports = {
