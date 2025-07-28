@@ -272,23 +272,14 @@ async function download(torrent, hash, client) {
    handleTorrentDownload(infoHash, torrent);
 }
 
-
 function getPeers() {
-   let peers;
-   fs.readFile(PATHS.PEER_FILE, 'utf8', (err, data) => {
-      if (err) {
-         console.error(`❌ Failed to read peer file: `, err);
-         return;
-      }
-      let peers;
-      try {
-         peers = JSON.parse(data);
-      } catch (parseError) {
-         console.error(`❌ Failed to parse peer file: `, parseError);
-         return;
-      }
-   });
-   return peers || [];
+   try {
+      const data = fs.readFileSync(PATHS.PEER_FILE, 'utf8');
+      return JSON.parse(data);
+   } catch (err) {
+      console.error(`❌ Failed to read/parse peer file: `, err);
+      return [];
+   }
 }
 
 module.exports = {
