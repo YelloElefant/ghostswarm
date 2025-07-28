@@ -1,4 +1,5 @@
 const { exec } = require('child_process');
+const crypto = require('crypto');
 
 const MQTT_BROKER = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
 
@@ -16,6 +17,9 @@ const botId = config.mqtt.botId;
 console.log(`🤖 [${botId}] connecting to MQTT broker at ${MQTT_BROKER}`);
 const mqttClient = startMQTT();
 startHeartbeat(mqttClient);
+
+checkTorrentIntegrity();
+
 setTimeout(() => {
    checkForTorrents();
 }, 5000); // Wait a bit before checking for torrents
@@ -170,6 +174,83 @@ function checkForTorrents() {
 }
 
 
+function hashBuffer(buf) {
+   return crypto.createHash('sha1').update(buf).digest('hex');
+}
 
+function checkTorrentIntegrity() {
+   const torrentDir = config.PATHS.TORRENTS_DIR;
+   const uploadDir = config.PATHS.UPLOADS_DIR;
 
+   const torrentFiles = fs.readdirSync(torrentDir)
+      .filter(file => file.endsWith(config.PATHS.TORRENT_EXTENSION));
+
+   torrentFiles.forEach(file => {
+      const filePath = path.join(torrentDir, file);
+      const torrentData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      const infoHash = file.replace(config.PATHS.TORRENT_EXTENSION, '');
+      const dataFilePath = path.join(uploadDir, torrentData.name);
+
+      if (!fs.existsSync(dataFilePath)) {
+         console.warn(`❌ [${botId}] Missing data file for torrent: ${torrentData.name}`);
+         invalidateTorrent(infoHash, torrentData);
+         return;
+      }
+
+      const data = fs.readFileSync(dataFilePath);
+      const pieceLength = torrentData.pieceLength;
+      const pieces = torrentData.pieces;
+
+      let corrupted = [];
+
+      for (let i = 0; i < pieces.length; i++) {
+         const piece = data.slice(i * pieceLength, (i + 1) * pieceLength);
+         const expected = pieces[i].hash;
+         const actual = hashBuffer(piece);
+
+         if (expected !== actual) {
+            corrupted.push(i);
+         }
+      }
+
+      if (corrupted.length > 0) {
+         console.warn(`🛑 [${botId}] CORRUPTED pieces in ${torrentData.name}: ${corrupted.join(', ')}`);
+         invalidateTorrent(infoHash, torrentData);
+      } else {
+         console.log(`✅ [${botId}] All ${pieces.length} pieces OK in ${torrentData.name}`);
+      }
+   });
+}
+
+function invalidateTorrent(infoHash, torrentData) {
+   const torrentPath = config.PATHS.TORRENTS_DIR + `/${infoHash}${config.PATHS.TORRENT_EXTENSION}`;
+   const outDir = config.PATHS.UPLOADS_DIR + `/${torrentData.name}`;
+   const piecesDir = config.PATHS.PIECES_DIR + `/${infoHash}`;
+
+   if (fs.existsSync(outDir)) {
+      fs.rmSync(outDir, { recursive: true });
+      console.log(`🗑️ [${botId}] Deleted output directory ${outDir}`);
+   }
+
+   if (fs.existsSync(piecesDir)) {
+      fs.rmSync(piecesDir, { recursive: true });
+      console.log(`🗑️ [${botId}] Deleted pieces directory ${piecesDir}`);
+   }
+
+   download(torrentData, infoHash, mqttClient)
+      .then(() => {
+         console.log(`📥 [${botId}] invalidated torrent ${infoHash}`);
+      })
+      .catch(err => {
+         console.error(`❌ [${botId}] failed to invalidate torrent ${infoHash}:`, err);
+         // Send error response
+         const statusTopic = `ghostswarm/${botId}/status`;
+         mqttClient.publish(statusTopic, JSON.stringify({
+            status: "error",
+            error: err.message,
+            time: Date.now()
+         }));
+      });
+
+}
 

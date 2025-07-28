@@ -19,10 +19,10 @@ let mqtt;
 
 function handleTorrentDownload(infoHash, payload) {
    const torrentPath = path.join(PATHS.TORRENTS_DIR, `${infoHash}${PATHS.TORRENT_EXTENSION}`);
+   const outDir = path.join(PATHS.PIECES_DIR, infoHash);
+
    fs.mkdirSync(path.dirname(torrentPath), { recursive: true });
    fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
-
-   const outDir = path.join(PATHS.PIECES_DIR, infoHash);
    fs.mkdirSync(outDir, { recursive: true });
 
 
