@@ -26,6 +26,7 @@ module.exports = {
 
    // Added PATHS and DOWNLOAD_CONFIG
    PATHS: {
+      PEER_FILE: "/data/peers.json",          // File to store peer information
       HOST_HOSTNAME: "/host_hostname",           // File containing bot hostname
       TORRENTS_DIR: "/data/torrents",             // Directory to store .ghostswarm files
       PIECES_DIR: "/data/pieces",                 // Directory to store downloaded pieces

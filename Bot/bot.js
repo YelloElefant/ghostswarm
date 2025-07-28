@@ -74,6 +74,17 @@ mqttClient.on('message', (topic, message) => {
             });
       }
 
+      else if (topic.startsWith('ghostswarm/peers')) {
+         const peers = JSON.parse(message.toString());
+         // save peers to file
+         const peerFile = config.PATHS.PEER_FILE;
+         fs.mkdirSync(path.dirname(peerFile), { recursive: true });
+         fs.writeFileSync(peerFile, JSON.stringify(peers, null, 2));
+         console.log(`📡 [${botId}] saved peers to ${peerFile}`);
+      }
+
+
+
 
    } catch (err) {
       console.error(`❌ [${botId}] failed to handle message`, err);

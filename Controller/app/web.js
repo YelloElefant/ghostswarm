@@ -17,8 +17,13 @@ const swarmMap = new Map(); // Store bot info by ID
 const { startMQTT } = require('./mqtt/client'); // Import your MQTT client setup
 const mqttClient = startMQTT();
 
+// Dead check on peers
 const { startDeadCheck } = require('./utils/deadCheck'); // Import WebSocket server setup
 startDeadCheck(swarmMap, redis);
+
+// advertise peers
+const { advertisePeers } = require('./utils/peers'); // Import peer advertising utility
+advertisePeers(redis, mqttClient);
 
 const { checkForTorrents, updateSwarmMap } = require('./torrent/torrent'); // Import torrent utility functions
 
@@ -86,10 +91,7 @@ mqttClient.on('message', async (topic, message) => {
       });
 
       // save status to Redis
-      await redis.set(`status:${botId}`, JSON.stringify({
-         status: data.status,
-         lastSeen: data.time,
-      }));
+      await redis.set(`status:${botId}`, JSON.stringify(data));
 
 
 
