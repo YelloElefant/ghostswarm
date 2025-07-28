@@ -30,6 +30,7 @@ services:
     ports:
       - "8888:3000" # 🔥 expose web interface
       - "5000:5000" # 🔥 expose seeder
+      - "5001:5001" # 🔥 expose tracker
     depends_on:
       - redis
       - mqtt

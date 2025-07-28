@@ -12,5 +12,6 @@ module.exports = {
    TORRENTS_DIR: "/data/torrents",
    SWARM_DIR: "/data/swarm",
    TORRENT_EXTENSION: ".ghostswarm",
-   PORT: 2319
+   PORT: 2319,
+   TRACKER_PORT: 5001, // Port for the tracker service
 };
