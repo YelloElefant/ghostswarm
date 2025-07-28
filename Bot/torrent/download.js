@@ -25,7 +25,6 @@ function handleTorrentDownload(infoHash, payload) {
    const outDir = path.join(PATHS.PIECES_DIR, infoHash);
    fs.mkdirSync(outDir, { recursive: true });
 
-   console.log(JSON.stringify(payload, null, 2));
 
    // Track download progress
    const downloadProgress = {
@@ -34,6 +33,40 @@ function handleTorrentDownload(infoHash, payload) {
       pieces: new Set()
    };
 
+   // get swarm map from tracker
+   const swarmUrl = `http://${DOWNLOAD_CONFIG.CONTROLLER_IP}:${DOWNLOAD_CONFIG.TRACKER_PORT}/swarm/${infoHash}`;
+   http.get(swarmUrl, res => {
+      if (res.statusCode !== 200) {
+         console.error(`❌ Failed to fetch swarm map for ${infoHash}: ${res.statusCode} `);
+         return;
+      }
+
+      // save response to file
+      let data = '';
+      let dest = path.join(PATHS.SWARM_DIR, `${infoHash}.json`);
+      fs.mkdirSync(PATHS.SWARM_DIR, { recursive: true });
+      console.log(`📥 Fetching swarm map for ${infoHash} for ${infoHash}`);
+
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+         try {
+            const json = JSON.parse(data);
+            // check if my botId is in the swarm map
+            if (removeBotFromSwarmMap(json, botId)) {
+               console.log(`🧠 Removed bot ${botId} from swarm map for ${infoHash}`);
+            } else {
+               console.log(`🧠 Bot ${botId} not found in swarm map for ${infoHash}`);
+            }
+
+            fs.writeFileSync(dest, JSON.stringify(json, null, 2));
+            console.log(`✅ JSON saved to ${dest}`);
+         } catch (err) {
+            console.error('❌ Failed to parse/save JSON:', err.message);
+         }
+      });
+   });
+
+
    // download each piece
    payload.pieces.forEach(piece => {
       const pieceIndex = piece.index;
@@ -41,7 +74,7 @@ function handleTorrentDownload(infoHash, payload) {
 
       requestPiece(DOWNLOAD_CONFIG.CONTROLLER_IP, DOWNLOAD_CONFIG.CONTROLLER_PORT, infoHash, pieceIndex, (err, buffer) => {
          if (err) {
-            console.error(`❌ Failed to download piece ${pieceIndex} of ${infoHash}:`, err);
+            console.error(`❌ Failed to download piece ${pieceIndex} of ${infoHash}: `, err);
             return;
          }
 
@@ -51,11 +84,11 @@ function handleTorrentDownload(infoHash, payload) {
          // Verify hash
          const hash = crypto.createHash('sha1').update(buffer).digest('hex');
          if (hash !== pieceHash) {
-            console.log(`❌ Hash mismatch for piece ${pieceIndex} of ${infoHash}: expected ${pieceHash}, got ${hash}`);
+            console.log(`❌ Hash mismatch for piece ${pieceIndex} of ${infoHash}: expected ${pieceHash}, got ${hash} `);
             return;
          }
 
-         console.log(`✅ Successfully downloaded and verified piece ${pieceIndex} of ${infoHash}`);
+         console.log(`✅ Successfully downloaded and verified piece ${pieceIndex} of ${infoHash} `);
          announceHave(infoHash, pieceIndex);
 
          // Track progress
@@ -71,6 +104,27 @@ function handleTorrentDownload(infoHash, payload) {
    });
 }
 
+function removeBotFromSwarmMap(swarmMap, botId) {
+   let modified = false;
+
+   for (const [pieceIndex, botList] of Object.entries(swarmMap)) {
+      const updatedList = botList.filter(id => id !== botId);
+
+      if (updatedList.length !== botList.length) {
+         swarmMap[pieceIndex] = updatedList;
+         modified = true;
+      }
+
+      // If the list becomes empty, you can optionally delete the entry:
+      if (updatedList.length === 0) {
+         delete swarmMap[pieceIndex];
+      }
+   }
+
+   return modified; // returns true if any change was made
+}
+
+
 function combineIntorrent(infoHash, payload) {
    // Combine pieces into final file
    const piecePath = path.join(PATHS.PIECES_DIR, infoHash);
@@ -84,7 +138,7 @@ function combineIntorrent(infoHash, payload) {
    let errorOccurred = false;
 
    writeStream.on('error', err => {
-      console.error(`❌ Failed to write final file ${finalFile}:`, err);
+      console.error(`❌ Failed to write final file ${finalFile}: `, err);
       errorOccurred = true;
    });
 
@@ -94,7 +148,7 @@ function combineIntorrent(infoHash, payload) {
 
          // Verify final file size
          const stats = fs.statSync(finalFile);
-         console.log(`📊 Final file size: ${stats.size} bytes (expected: ${payload.size} bytes)`);
+         console.log(`📊 Final file size: ${stats.size} bytes(expected: ${payload.size} bytes)`);
 
          if (stats.size === payload.size) {
             console.log(`✅ File size matches expected size!`);
@@ -122,13 +176,13 @@ function combineIntorrent(infoHash, payload) {
             const buffer = fs.readFileSync(partPath);
             writeStream.write(buffer);
             totalWritten += buffer.length;
-            console.log(`🧩 Appended piece ${i} (${buffer.length} bytes, total: ${totalWritten})`);
+            console.log(`🧩 Appended piece ${i}(${buffer.length} bytes, total: ${totalWritten})`);
          }
 
          writeStream.end();
          console.log(`✅ All pieces written, total: ${totalWritten} bytes`);
       } catch (err) {
-         console.error(`❌ Failed during combination:`, err.message);
+         console.error(`❌ Failed during combination: `, err.message);
       }
    })();
 }

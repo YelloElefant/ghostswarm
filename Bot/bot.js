@@ -50,7 +50,7 @@ mqttClient.on('message', (topic, message) => {
       else if (topic.startsWith(`ghostswarm/${botId}/download/`)) {
          const infoHash = topic.split('/')[3];
          const payload = JSON.parse(message.toString());
-         console.log(`📥 [${botId}] need to download torrent ${infoHash}`, payload);
+         console.log(`📥 [${botId}] need to download torrent ${infoHash}`);
          handleTorrentDownload(infoHash, payload);
       }
 
