@@ -78,27 +78,20 @@ async function checkForTorrents(mqtt, redis, botId) {
 }
 
 async function updateSwarmMap(redis, infoHash, pieceIndex, botId) {
-   try {
-      const key = `swarm:${infoHash}`;
-      const swarmData = await redis.get(key);
-      let swarm = {};
-      if (swarmData) {
-         swarm = JSON.parse(swarmData);
-      }
-      // Ensure bot entry exists and is an array of unique piece indices
-      if (!swarm[pieceIndex]) {
-         swarm[pieceIndex] = [];
-      }
-      if (!swarm[pieceIndex].includes(botId)) {
-         swarm[pieceIndex].push(botId);
-      }
-      await redis.set(key, JSON.stringify(swarm));
-      await redis.save(); // Ensure data is saved to disk
-      console.log(`✅ Updated swarm map for ${infoHash}: bot ${botId} has piece ${pieceIndex}`);
-   } catch (error) {
-      console.error(`❌ Error updating swarm map for ${infoHash}:`, error.message);
+   const key = `swarm:${infoHash}`;
+   const field = pieceIndex.toString();
+
+   let currentList = [];
+   const existing = await redis.hget(key, field);
+   if (existing) {
+      currentList = JSON.parse(existing);
    }
 
+   if (!currentList.includes(botId)) {
+      currentList.push(botId);
+      await redis.hset(key, field, JSON.stringify(currentList));
+      console.log(`✅ ${botId} now has piece ${pieceIndex}`);
+   }
 }
 
 module.exports = { registerTorrent, checkForTorrents, updateSwarmMap };

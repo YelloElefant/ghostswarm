@@ -19,23 +19,16 @@ app.get("/swarm/:infoHash", async (req, res) => {
       return res.status(500).json({ error: "Server not properly initialized" });
    }
 
-   await redis.get(`swarm:${infoHash}`, (err, data) => {
-      if (err) {
-         console.error(`❌ Error fetching swarm map for ${infoHash}:`, err);
-         return res.status(500).json({ error: "Failed to fetch swarm map" });
+   try {
+      const swarm = await getSwarmMap(redis, infoHash);
+      if (!swarm || Object.keys(swarm).length === 0) {
+         return res.status(404).json({ error: "Swarm not found" });
       }
-      if (!data) {
-         return res.status(404).json({ error: "Swarm map not found" });
-      }
-
-      try {
-         const swarmMap = JSON.parse(data);
-         res.json(swarmMap);
-      } catch (parseError) {
-         console.error(`❌ Error parsing swarm map for ${infoHash}:`, parseError);
-         res.status(500).json({ error: "Invalid swarm map format" });
-      }
-   });
+      res.json(swarm);
+   } catch (error) {
+      console.error(`❌ Error fetching swarm for ${infoHash}:`, error);
+      res.status(500).json({ error: "Failed to fetch swarm data" });
+   }
 
 });
 
@@ -72,7 +65,14 @@ app.get('/bot/:botId', async (req, res) => {
 });
 
 
-
+async function getSwarmMap(redis, infoHash) {
+   const entries = await redis.hgetall(`swarm:${infoHash}`);
+   const swarm = {};
+   for (const [pieceIndex, botsJson] of Object.entries(entries)) {
+      swarm[pieceIndex] = JSON.parse(botsJson);
+   }
+   return swarm;
+}
 
 
 

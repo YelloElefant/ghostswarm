@@ -134,11 +134,9 @@ mqttClient.on('message', async (topic, message) => {
 
 
 
-
-
-
-
-
+setInterval(() => {
+   redis.save();
+}, 60000); // Save every minute
 
 
 
