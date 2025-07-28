@@ -39,7 +39,7 @@ async function registerTorrent(filepath) {
       console.log(`🧩 Pieces: ${pieces.length}`);
       console.log(`🧠 Info hash: ${infoHash}`);
 
-      return infoHash;
+      return infoHash // Return infoHash and number of pieces
    } catch (error) {
       console.error(`❌ Error registering torrent:`, error.message);
       throw error;
@@ -77,7 +77,31 @@ async function checkForTorrents(mqtt, redis, botId) {
    });
 }
 
-module.exports = { registerTorrent, checkForTorrents };
+async function updateSwarmMap(redis, infoHash, pieceIndex, botId) {
+   try {
+      const key = `swarm:${infoHash}`;
+      const swarmData = await redis.get(key);
+      let swarm = {};
+      if (swarmData) {
+         swarm = JSON.parse(swarmData);
+      }
+      // Ensure bot entry exists and is an array of unique piece indices
+      if (!swarm[pieceIndex]) {
+         swarm[pieceIndex] = [];
+      }
+      if (!swarm[pieceIndex].includes(botId)) {
+         swarm[pieceIndex].push(botId);
+      }
+      await redis.set(key, JSON.stringify(swarm));
+      await redis.save(); // Ensure data is saved to disk
+      console.log(`✅ Updated swarm map for ${infoHash}: bot ${botId} has piece ${pieceIndex}`);
+   } catch (error) {
+      console.error(`❌ Error updating swarm map for ${infoHash}:`, error.message);
+   }
+
+}
+
+module.exports = { registerTorrent, checkForTorrents, updateSwarmMap };
 
 // For direct CLI usage (optional)
 if (require.main === module) {

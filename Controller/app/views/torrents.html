@@ -78,12 +78,14 @@
       async function deleteTorrent(hash) {
         if (!confirm(`Are you sure you want to delete torrent ${hash}?`))
           return;
-        const res = await fetch(`/torrents/${hash}`, { method: "DELETE" });
+        const res = await fetch(`api/torrents/${hash}`, { method: "DELETE" });
 
         if (res.ok) {
           alert("Torrent deleted successfully");
           fetchTorrents();
         } else {
+          console.log("Failed to delete torrent:", await res.text());
+
           alert("Failed to delete torrent");
         }
       }

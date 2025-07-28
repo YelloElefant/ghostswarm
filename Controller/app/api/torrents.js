@@ -40,6 +40,7 @@ router.post('/register', upload.single('torrentFile'), async (req, res) => {
       // Register and get hash
       const hash = await registerTorrent(destPath);
 
+
       // Read the torrent file
       const torrentFilePath = path.join(TORRENT_DIR, `${hash}` + config.TORRENT_EXTENSION);
       const torrentData = JSON.parse(fs.readFileSync(torrentFilePath, 'utf8'));
@@ -64,6 +65,7 @@ router.post('/register', upload.single('torrentFile'), async (req, res) => {
          size: torrentData.size,
          pieces: torrentData.pieces.length
       });
+
    } catch (err) {
       console.error('❌ Error registering torrent:', err);
       res.status(500).json({ error: 'Failed to register torrent' });
@@ -130,6 +132,7 @@ router.delete('/:infoHash', async (req, res) => {
 
       // Delete from Redis
       await redis.del(`torrent:${infoHash}`);
+      await redis.del(`status:${infoHash}`); // If you store status separately
       console.log(`🗑️ Deleted torrent from Redis: ${infoHash}`);
 
       res.json({ success: true, message: 'Torrent deleted successfully' });

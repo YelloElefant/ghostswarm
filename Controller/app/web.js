@@ -20,7 +20,7 @@ const mqttClient = startMQTT();
 const { startDeadCheck } = require('./utils/deadCheck'); // Import WebSocket server setup
 startDeadCheck(swarmMap, redis);
 
-const { checkForTorrents } = require('./torrent/torrent'); // Import torrent utility functions
+const { checkForTorrents, updateSwarmMap } = require('./torrent/torrent'); // Import torrent utility functions
 
 // Import API routes
 const { router: apiRoutes, initApiRoutes } = require('./api');
@@ -118,6 +118,13 @@ mqttClient.on('message', async (topic, message) => {
                time: Date.now()
             }));
          });
+   }
+
+
+   else if (topic.startsWith('ghostswarm/torrent/have/')) {
+      const bot = topic.split('/')[3];
+      const { infoHash, pieceIndex } = JSON.parse(message.toString());
+      updateSwarmMap(redis, infoHash, pieceIndex, bot);
    }
 
 
