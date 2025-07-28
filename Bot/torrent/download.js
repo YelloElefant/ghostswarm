@@ -33,6 +33,13 @@ function handleTorrentDownload(infoHash, payload) {
       pieces: new Set()
    };
 
+
+   // initialize swarm map 
+   let swarmMap = {};
+   for (let i = 0; i < downloadProgress.total; i++) {
+      swarmMap[i] = [];
+   }
+
    // get swarm map from tracker
    const swarmUrl = `http://${DOWNLOAD_CONFIG.CONTROLLER_IP}:${DOWNLOAD_CONFIG.TRACKER_PORT}/swarm/${infoHash}`;
    http.get(swarmUrl, res => {
@@ -43,7 +50,14 @@ function handleTorrentDownload(infoHash, payload) {
 
       // save response to file
       let data = '';
+
+
+
       let dest = path.join(PATHS.SWARM_DIR, `${infoHash}.json`);
+
+
+
+
       fs.mkdirSync(PATHS.SWARM_DIR, { recursive: true });
       console.log(`📥 Fetching swarm map for ${infoHash} for ${infoHash}`);
 
@@ -51,6 +65,9 @@ function handleTorrentDownload(infoHash, payload) {
       res.on('end', () => {
          try {
             const json = JSON.parse(data);
+
+
+
             // check if my botId is in the swarm map
             if (removeBotFromSwarmMap(json, botId)) {
                console.log(`🧠 Removed bot ${botId} from swarm map for ${infoHash}`);
@@ -58,7 +75,13 @@ function handleTorrentDownload(infoHash, payload) {
                console.log(`🧠 Bot ${botId} not found in swarm map for ${infoHash}`);
             }
 
-            fs.writeFileSync(dest, JSON.stringify(json, null, 2));
+            // for each piece add to swarmMap
+            for (const [p, botList] of Object.entries(json)) {
+               swarmMap[p] = botList; // Overwrite or set
+            }
+
+
+            fs.writeFileSync(dest, JSON.stringify(swarmMap, null, 2));
             console.log(`✅ JSON saved to ${dest}`);
          } catch (err) {
             console.error('❌ Failed to parse/save JSON:', err.message);
