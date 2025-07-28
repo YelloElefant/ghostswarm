@@ -93,3 +93,125 @@ input[type="file"] {
    z-index: 1;
    position: relative;
 }
+
+
+.modal {
+   display: none;
+   position: fixed;
+   z-index: 2000;
+   top: 0;
+   left: 0;
+   width: 100%;
+   height: 100%;
+   background: rgba(17, 17, 17, 0.85);
+   justify-content: center;
+   align-items: center;
+}
+
+.modal-content {
+   background: #1a1a1a;
+   padding: 2rem;
+   border-radius: 12px;
+   width: 100%;
+   max-width: 480px;
+   box-shadow: 0 0 15px #28e96a55;
+   color: white;
+}
+
+.modal-content h2 {
+   margin-top: 0;
+   color: #28e96a;
+}
+
+.modal-content label {
+   display: block;
+   margin-top: 1rem;
+   font-weight: bold;
+}
+
+.modal-content input[type="text"],
+.modal-content select {
+   width: 100%;
+   padding: 0.6rem;
+   background: #333;
+   color: white;
+   border: none;
+   border-radius: 6px;
+   margin-top: 0.5rem;
+}
+
+.modal-content input[type="checkbox"] {
+   margin-right: 0.5rem;
+}
+
+.button-row {
+   display: flex;
+   justify-content: space-between;
+   margin-top: 1.5rem;
+}
+
+.button-row button {
+   background: #28e96a;
+   border: none;
+   color: black;
+   font-weight: bold;
+   padding: 10px 20px;
+   border-radius: 6px;
+   cursor: pointer;
+}
+
+#tagInputWrapper {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 6px;
+   background: #222;
+   padding: 8px;
+   border-radius: 8px;
+   margin-top: 0.5rem;
+}
+
+#tagList {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 6px;
+}
+
+.tag {
+   background: #444;
+   color: #ccc;
+   padding: 5px 10px;
+   border-radius: 500px;
+   font-size: 0.85rem;
+   display: flex;
+   align-items: center;
+   gap: 6px;
+}
+
+.tag .remove-tag {
+   color: #888;
+   cursor: pointer;
+   font-weight: bold;
+}
+
+#tagInput {
+   background: transparent;
+   border: none;
+   color: white;
+   flex-grow: 1;
+   min-width: 120px;
+   padding: 4px;
+   outline: none;
+}
+
+#previewList {
+   list-style: none;
+   padding-left: 0;
+   font-size: 0.9rem;
+   background: #222;
+   padding: 1rem;
+   border-radius: 8px;
+}
+
+#previewList li {
+   margin-bottom: 0.5rem;
+}

@@ -150,4 +150,30 @@ router.delete('/:infoHash', async (req, res) => {
    }
 });
 
+// get to check if a torrent exists
+router.get('/exists/:fileName', async (req, res) => {
+   try {
+      if (!redis) {
+         return res.status(500).json({ error: 'Server not properly initialized' });
+      }
+      const fileName = req.params.fileName;
+      const torrentKeys = await redis.keys(`torrent:*`);
+      if (!torrentKeys) {
+         return res.json({ exists: false });
+      }
+
+      for (const key of torrentKeys) {
+         const torrentData = JSON.parse(await redis.get(key));
+         if (torrentData.name === fileName) {
+            return res.json({ exists: true });
+         }
+      }
+      res.json({ exists: false });
+   } catch (err) {
+      console.error('❌ Error checking torrent existence:', err);
+      res.status(500).json({ error: 'Failed to check torrent existence' });
+   }
+});
+
+
 module.exports = { router, initTorrentRoutes };
