@@ -211,18 +211,54 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
    }
 
    function selectPeerForPiece(pieceIndex) {
-      // Try peers from swarm first
+      const availablePeers = [];
+      
+      // Add controller as a potential peer
+      availablePeers.push({
+         ip: DOWNLOAD_CONFIG.CONTROLLER_IP,
+         port: DOWNLOAD_CONFIG.CONTROLLER_PORT,
+         source: 'controller',
+         id: 'controller'
+      });
+      
+      // Add peers from swarm that have this piece
       const botsWithPiece = swarmMap[pieceIndex] || [];
-
       if (botsWithPiece.length > 0 && peers.length > 0) {
-         const randomBotId = botsWithPiece[Math.floor(Math.random() * botsWithPiece.length)];
-         const peer = peers.find(p => p.id === randomBotId);
-         if (peer) {
-            return { ip: peer.ip, port: 5000, source: 'peer' };
-         }
+         botsWithPiece.forEach(botId => {
+            const peer = peers.find(p => p.id === botId);
+            if (peer) {
+               availablePeers.push({
+                  ip: peer.ip,
+                  port: 5000,
+                  source: 'peer',
+                  id: botId
+               });
+            }
+         });
       }
-
-      // Fallback to controller
+      
+      // If we have multiple options, pick one randomly
+      if (availablePeers.length > 1) {
+         const randomIndex = Math.floor(Math.random() * availablePeers.length);
+         const selectedPeer = availablePeers[randomIndex];
+         return {
+            ip: selectedPeer.ip,
+            port: selectedPeer.port,
+            source: selectedPeer.source
+         };
+      }
+      
+      // If we only have one option (or none), use it (or fallback to controller)
+      if (availablePeers.length === 1) {
+         const peer = availablePeers[0];
+         return {
+            ip: peer.ip,
+            port: peer.port,
+            source: peer.source
+         };
+      }
+      
+      // Final fallback (shouldn't happen since controller is always added)
       return {
          ip: DOWNLOAD_CONFIG.CONTROLLER_IP,
          port: DOWNLOAD_CONFIG.CONTROLLER_PORT,
