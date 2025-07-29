@@ -143,7 +143,7 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
                      combineIntorrent(infoHash, payload);
                   }
                }
-
+               maybeLogProgress();
                return next(); // 🚀 Go to next piece immediately
             } else {
                console.warn(`❌ Corrupt piece ${pieceIndex}, re - downloading`);
