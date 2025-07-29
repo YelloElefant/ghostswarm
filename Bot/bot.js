@@ -20,10 +20,10 @@ console.log(`🤖 [${botId}] connecting to MQTT broker at ${MQTT_BROKER}`);
 const mqttClient = startMQTT();
 startHeartbeat(mqttClient);
 
-checkTorrentIntegrity();
 
 setTimeout(() => {
    checkForTorrents();
+   checkTorrentIntegrity();
 }, 5000); // Wait a bit before checking for torrents
 
 mqttClient.on('message', (topic, message) => {
