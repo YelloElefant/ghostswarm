@@ -122,7 +122,7 @@ async function updateSwarmMap(redis, infoHash, pieceIndex, botId) {
    if (!currentList.includes(botId)) {
       currentList.push(botId);
       await redis.hset(key, field, JSON.stringify(currentList));
-      console.log(`✅ ${botId} now has piece ${pieceIndex}`);
+      // console.log(`✅ ${botId} now has piece ${pieceIndex}`);
    }
 }
 

@@ -22,7 +22,7 @@ app.get('/piece/:infoHash/:index', (req, res) => {
    const start = pieceIndex * pieceLength;
    const end = Math.min(start + pieceLength, torrent.size);
 
-   console.log(`📦 Serving piece ${index} of ${infoHash} (${start}-${end}) to ${req.ip}`);
+   // console.log(`📦 Serving piece ${index} of ${infoHash} (${start}-${end}) to ${req.ip}`);
 
    const fullFilePath = path.join(UPLOADS_DIR, torrent.name);
    if (!fs.existsSync(fullFilePath)) return res.status(404).send('Original file not found');

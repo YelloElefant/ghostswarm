@@ -71,7 +71,7 @@ mqttClient.on('message', (topic, message) => {
          const peerFile = config.PATHS.PEER_FILE;
          fs.mkdirSync(path.dirname(peerFile), { recursive: true });
          fs.writeFileSync(peerFile, JSON.stringify(peers, null, 2));
-         console.log(`📡 [${botId}] saved peers to ${peerFile}`);
+         // console.log(`📡 [${botId}] saved peers to ${peerFile}`);
       }
 
 
@@ -104,7 +104,7 @@ function updateSwarmMap(infoHash, pieceIndex, who) {
    if (!map[key].includes(who)) map[key].push(who);
 
    fs.writeFileSync(swarmFile, JSON.stringify(map, null, 2));
-   console.log(`🧠 Swarm updated: piece ${pieceIndex} held by ${who}`);
+   // console.log(`🧠 Swarm updated: piece ${pieceIndex} held by ${who}`);
 }
 
 function handleTorrentDownload(infoHash, payload) {
@@ -184,28 +184,57 @@ function checkTorrentIntegrity() {
          return;
       }
 
-      const data = fs.readFileSync(dataFilePath);
       const pieceLength = torrentData.pieceLength;
       const pieces = torrentData.pieces;
+      const corrupted = [];
 
-      let corrupted = [];
+      let pieceBuffer = Buffer.alloc(0);
+      let pieceIndex = 0;
+      let fileOffset = 0;
 
-      for (let i = 0; i < pieces.length; i++) {
-         const piece = data.slice(i * pieceLength, (i + 1) * pieceLength);
-         const expected = pieces[i].hash;
-         const actual = hashBuffer(piece);
+      const stream = fs.createReadStream(dataFilePath, { highWaterMark: pieceLength });
 
-         if (expected !== actual) {
-            corrupted.push(i);
+      stream.on('data', chunk => {
+         pieceBuffer = Buffer.concat([pieceBuffer, chunk]);
+
+         while (pieceBuffer.length >= pieceLength && pieceIndex < pieces.length) {
+            const piece = pieceBuffer.slice(0, pieceLength);
+            pieceBuffer = pieceBuffer.slice(pieceLength);
+
+            const expected = pieces[pieceIndex].hash;
+            const actual = hashBuffer(piece);
+
+            if (expected !== actual) {
+               corrupted.push(pieceIndex);
+            }
+
+            pieceIndex++;
          }
-      }
+      });
 
-      if (corrupted.length > 0) {
-         console.warn(`🛑 [${botId}] CORRUPTED pieces in ${torrentData.name}: ${corrupted.join(', ')}`);
+      stream.on('end', () => {
+         // Handle last partial piece (if any)
+         if (pieceBuffer.length > 0 && pieceIndex < pieces.length) {
+            const expected = pieces[pieceIndex].hash;
+            const actual = hashBuffer(pieceBuffer);
+
+            if (expected !== actual) {
+               corrupted.push(pieceIndex);
+            }
+         }
+
+         if (corrupted.length > 0) {
+            console.warn(`🛑 [${botId}] CORRUPTED pieces in ${torrentData.name}: ${corrupted.join(', ')}`);
+            invalidateTorrent(infoHash, torrentData);
+         } else {
+            console.log(`✅ [${botId}] All ${pieces.length} pieces OK in ${torrentData.name}`);
+         }
+      });
+
+      stream.on('error', err => {
+         console.error(`❌ [${botId}] Error reading file ${torrentData.name}:`, err.message);
          invalidateTorrent(infoHash, torrentData);
-      } else {
-         console.log(`✅ [${botId}] All ${pieces.length} pieces OK in ${torrentData.name}`);
-      }
+      });
    });
 }
 

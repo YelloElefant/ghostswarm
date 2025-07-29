@@ -97,6 +97,17 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
    let active = 0;
    let index = 0;
 
+   let lastLogTime = 0;
+
+   function maybeLogProgress() {
+      const now = Date.now();
+      if (now - lastLogTime > 1000) {
+         lastLogTime = now;
+         const percent = ((downloadProgress.completed / downloadProgress.total) * 100).toFixed(2);
+         console.log(`📦 Download progress: ${downloadProgress.completed}/${downloadProgress.total} pieces (${percent}%)`);
+      }
+   }
+
    function next() {
       if (index >= payload.pieces.length) return;
       if (active >= limit) return;
@@ -115,10 +126,7 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
          try {
             const data = fs.readFileSync(piecePath);
             const hash = crypto.createHash('sha1').update(data).digest('hex');
-            console.log(`🔍 Checking existing piece ${pieceIndex}...`);
-
             if (hash === pieceHash) {
-               console.log(`✅ Already have valid piece ${pieceIndex}, skipping`);
                downloadProgress.pieces.add(pieceIndex);
                downloadProgress.completed++;
                announceHave(infoHash, pieceIndex);
@@ -170,10 +178,10 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
             return next();
          }
 
-         console.log(`✅ Downloaded and verified piece ${pieceIndex} `);
          downloadProgress.pieces.add(pieceIndex);
          downloadProgress.completed++;
          announceHave(infoHash, pieceIndex);
+         maybeLogProgress();
 
          if (downloadProgress.completed === downloadProgress.total) {
             const allExist = payload.pieces.every(p =>
@@ -286,7 +294,6 @@ function announceHave(infoHash, index) {
    const topic = `ghostswarm/torrent/have/${botId}`;
    const msg = { infoHash, pieceIndex: index };
    mqtt.publish(topic, JSON.stringify(msg), { qos: 1 });
-   // console.log(`📢 Announced HAVE ${infoHash} - piece ${index}`);
 }
 
 function getPeers() {
