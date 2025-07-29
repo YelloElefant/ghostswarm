@@ -171,13 +171,32 @@ function startDownloadProcess(infoHash, payload, outDir, downloadProgress) {
 function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmMap) {
    const MAX_CONCURRENT = 3;
    const MAX_RETRIES = 3;
-   const MAX_RESTART_ATTEMPTS = 2; // New: Allow torrent to restart
+   const MAX_RESTART_ATTEMPTS = 2;
    const retryCount = new Map();
    let isComplete = false;
    let restartAttempts = 0;
 
+   // Progress logging variables
+   let lastLogTime = 0;
+   let lastCompletedCount = 0;
+   const LOG_INTERVAL = 3000; // Log every 3 seconds
+
    const peers = getPeers();
    console.log(`👥 Found ${peers.length} peers for potential downloads`);
+
+   function logProgress(force = false) {
+      const now = Date.now();
+      if (!force && (now - lastLogTime) < LOG_INTERVAL) return;
+
+      const percent = ((downloadProgress.completed / downloadProgress.total) * 100).toFixed(1);
+      const speed = downloadProgress.completed - lastCompletedCount;
+      const eta = speed > 0 ? Math.ceil((downloadProgress.total - downloadProgress.completed) / speed * (LOG_INTERVAL / 1000)) : '∞';
+
+      console.log(`📦 [${downloadProgress.torrentName}] ${downloadProgress.completed}/${downloadProgress.total} pieces (${percent}%) | Active: ${downloadProgress.pendingPieces.size} | Failed: ${downloadProgress.failedPieces.size} | Speed: ${speed}/3s | ETA: ${eta}s`);
+
+      lastLogTime = now;
+      lastCompletedCount = downloadProgress.completed;
+   }
 
    function getNextPieceToDownload() {
       for (let i = 0; i < payload.pieces.length; i++) {
@@ -228,7 +247,6 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
       // Reset retry counts for failed pieces
       failedPieces.forEach(pieceIndex => {
          retryCount.delete(pieceIndex);
-         console.log(`🔄 Resetting piece ${pieceIndex} for retry`);
       });
 
       // Restart downloading
@@ -248,7 +266,10 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
       downloadProgress.pendingPieces.add(pieceIndex);
       const peer = selectPeerForPiece(pieceIndex);
 
-      console.log(`📥 Downloading piece ${pieceIndex} from ${peer.source} (${peer.ip}:${peer.port})`);
+      // Only log individual downloads in debug mode or for first few pieces
+      if (downloadProgress.completed < 5) {
+         console.log(`📥 Downloading piece ${pieceIndex} from ${peer.source}`);
+      }
 
       requestPiece(peer.ip, peer.port, infoHash, pieceIndex, (err, buffer) => {
          downloadProgress.pendingPieces.delete(pieceIndex);
@@ -257,14 +278,12 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
             const attempts = retryCount.get(pieceIndex) || 0;
             retryCount.set(pieceIndex, attempts + 1);
 
-            console.error(`❌ Piece ${pieceIndex} failed (attempt ${attempts + 1}/${MAX_RETRIES}): ${err.message}`);
-
+            // Only log failures for final attempts or critical errors
             if (attempts + 1 >= MAX_RETRIES) {
+               console.error(`❌ Piece ${pieceIndex} failed permanently after ${attempts + 1} attempts`);
                downloadProgress.failedPieces.add(pieceIndex);
-               console.error(`🛑 Piece ${pieceIndex} failed permanently`);
             }
 
-            // Try next piece
             setTimeout(startNextDownload, 1000);
             return;
          }
@@ -275,7 +294,11 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
             const attempts = retryCount.get(pieceIndex) || 0;
             retryCount.set(pieceIndex, attempts + 1);
 
-            console.warn(`❌ Hash mismatch for piece ${pieceIndex} (attempt ${attempts + 1})`);
+            if (attempts + 1 >= MAX_RETRIES) {
+               console.warn(`❌ Piece ${pieceIndex} hash mismatch - failed permanently`);
+               downloadProgress.failedPieces.add(pieceIndex);
+            }
+
             setTimeout(startNextDownload, 1000);
             return;
          }
@@ -287,23 +310,25 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
             downloadProgress.pieces.add(pieceIndex);
             downloadProgress.completed++;
 
-            // Save progress
-            state.saveState(infoHash, {
-               completed: downloadProgress.completed,
-               pieces: [...downloadProgress.pieces],
-               restartAttempts: restartAttempts
-            });
+            // Save progress (less frequently)
+            if (downloadProgress.completed % 5 === 0 || downloadProgress.completed === downloadProgress.total) {
+               state.saveState(infoHash, {
+                  completed: downloadProgress.completed,
+                  pieces: [...downloadProgress.pieces],
+                  restartAttempts: restartAttempts
+               });
+            }
 
             // Announce to swarm
             announceHave(infoHash, pieceIndex);
 
-            const percent = ((downloadProgress.completed / downloadProgress.total) * 100).toFixed(1);
-            console.log(`✅ Piece ${pieceIndex} complete (${downloadProgress.completed}/${downloadProgress.total} - ${percent}%)`);
+            // Log progress periodically
+            logProgress();
 
             // Check completion
             if (downloadProgress.completed >= downloadProgress.total) {
                isComplete = true;
-               console.log(`🎉 All pieces downloaded for ${infoHash}!`);
+               console.log(`🎉 All pieces downloaded for ${payload.name}!`);
                return combineIntorrent(infoHash, payload);
             }
 
@@ -336,8 +361,7 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
                // Try to restart failed pieces
                setTimeout(() => {
                   if (!restartFailedPieces()) {
-                     console.error(`🛑 Download failed permanently for ${infoHash}`);
-                     // Mark as failed in state
+                     console.error(`🛑 Download failed permanently for ${payload.name}`);
                      state.saveState(infoHash, {
                         completed: downloadProgress.completed,
                         pieces: [...downloadProgress.pieces],
@@ -345,7 +369,7 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
                         status: 'failed'
                      });
                   }
-               }, 2000); // Wait 2 seconds before restart
+               }, 2000);
             } else if (remainingPieces > 0) {
                console.error(`🛑 Download incomplete: ${remainingPieces} pieces missing`);
                isComplete = true;
@@ -361,6 +385,9 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
          setTimeout(startNextDownload, 100);
       }
    }
+
+   // Initial progress log
+   logProgress(true);
 
    // Start initial downloads
    for (let i = 0; i < Math.min(MAX_CONCURRENT, 2); i++) {
@@ -413,7 +440,7 @@ function checkStalledDownloads() {
 
       // If we have remaining pieces but nothing is downloading and nothing failed recently
       if (remainingPieces > 0 && pendingPieces === 0 && failedPieces === 0) {
-         console.warn(`⚠️ Detected stalled download for ${infoHash}, attempting restart...`);
+         console.warn(`⚠️ Stalled download detected for ${progress.torrentName}, restarting...`);
          restartTorrent(infoHash);
       }
    }
@@ -443,8 +470,8 @@ function getDownloadStatus() {
    return status;
 }
 
-// Auto-check for stalled downloads every 30 seconds
-setInterval(checkStalledDownloads, 30000);
+// Auto-check for stalled downloads every 60 seconds
+setInterval(checkStalledDownloads, 60000);
 
 function combineIntorrent(infoHash, payload) {
    const piecePath = path.join(PATHS.PIECES_DIR, infoHash);
@@ -457,12 +484,13 @@ function combineIntorrent(infoHash, payload) {
       return;
    }
 
-   console.log(`🔄 Combining ${payload.pieces.length} pieces into ${finalFile}`);
+   console.log(`🔄 Combining ${payload.pieces.length} pieces into ${payload.name}`);
 
    try {
       const writeStream = fs.createWriteStream(finalFile);
       let totalWritten = 0;
       let piecesProcessed = 0;
+      let lastLogTime = 0;
 
       const processPiece = (index) => {
          if (index >= payload.pieces.length) {
@@ -481,8 +509,14 @@ function combineIntorrent(infoHash, payload) {
          totalWritten += data.length;
          piecesProcessed++;
 
-         if (piecesProcessed % 10 === 0 || piecesProcessed === payload.pieces.length) {
-            console.log(`📝 Combined ${piecesProcessed}/${payload.pieces.length} pieces`);
+         // Log every 25 pieces or at completion, or every 2 seconds
+         const now = Date.now();
+         if (piecesProcessed % 25 === 0 ||
+            piecesProcessed === payload.pieces.length ||
+            (now - lastLogTime) > 2000) {
+            const percent = ((piecesProcessed / payload.pieces.length) * 100).toFixed(1);
+            console.log(`📝 Combining: ${piecesProcessed}/${payload.pieces.length} pieces (${percent}%)`);
+            lastLogTime = now;
          }
 
          // Process next piece
@@ -491,11 +525,9 @@ function combineIntorrent(infoHash, payload) {
 
       writeStream.on('finish', () => {
          const stats = fs.statSync(finalFile);
-         console.log(`📦 Final file: ${finalFile} (${stats.size} bytes)`);
+         console.log(`📦 ✅ ${payload.name} assembled successfully! (${stats.size} bytes)`);
 
-         if (stats.size === payload.size) {
-            console.log(`✅ File assembled correctly!`);
-         } else {
+         if (stats.size !== payload.size) {
             console.warn(`⚠️ Size mismatch! Expected ${payload.size}, got ${stats.size}`);
          }
 
@@ -504,7 +536,7 @@ function combineIntorrent(infoHash, payload) {
             try {
                if (fs.existsSync(piecePath)) {
                   fs.rmSync(piecePath, { recursive: true });
-                  console.log(`🧹 Cleaned up pieces directory`);
+                  console.log(`🧹 Cleaned up pieces for ${payload.name}`);
                }
                delete activeDownloads[infoHash];
                state.clearState(infoHash);
@@ -533,6 +565,24 @@ function combineIntorrent(infoHash, payload) {
       }
    }
 }
+
+// Enhanced stall detection with less frequent checks
+function checkStalledDownloads() {
+   for (const [infoHash, progress] of Object.entries(activeDownloads)) {
+      const remainingPieces = progress.total - progress.completed;
+      const pendingPieces = progress.pendingPieces.size;
+      const failedPieces = progress.failedPieces.size;
+
+      // If we have remaining pieces but nothing is downloading and nothing failed recently
+      if (remainingPieces > 0 && pendingPieces === 0 && failedPieces === 0) {
+         console.warn(`⚠️ Stalled download detected for ${progress.torrentName}, restarting...`);
+         restartTorrent(infoHash);
+      }
+   }
+}
+
+// Check for stalled downloads every 60 seconds instead of 30
+setInterval(checkStalledDownloads, 60000);
 
 function requestPiece(ip, port, infoHash, pieceIndex, cb) {
    const options = {
