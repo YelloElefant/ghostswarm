@@ -241,6 +241,11 @@ function checkTorrentIntegrity(botId) {
 
          if (fs.existsSync(statePath) && fs.existsSync(piecePath)) {
             console.warn(`⚠️ [${botId}] Final file missing but .state.json and pieces exist — will resume ${torrentData.name}`);
+            download(torrentData, infoHash, mqttClient)
+               .then(() => console.log(`📥 [${botId}] resumed torrent ${infoHash}`))
+               .catch(err => {
+                  console.error(`❌ [${botId}] failed to resume torrent ${infoHash}:`, err);
+               });
             return;
          }
 
