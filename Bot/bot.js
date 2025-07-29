@@ -11,6 +11,8 @@ const config = require("./config");
 const { startMQTT } = require("./mqtt/client");
 const { startHeartbeat } = require("./heartbeat/heartbeat");
 const { executeShellCommand } = require("./commands/commands");
+const { loadState, clearState } = require('./state/state');
+
 
 const botId = config.mqtt.botId;
 
@@ -161,7 +163,6 @@ function checkForTorrents() {
 }
 
 
-const { loadState, clearState } = require('./state/state');
 
 function hashBuffer(buf) {
    return crypto.createHash('sha1').update(buf).digest('hex');
