@@ -165,7 +165,7 @@ function handleTorrentDownload(infoHash, payload) {
    });
 }
 
-function download(torrent, hash, client) {
+async function download(torrent, hash, client) {
    mqtt = client;
    handleTorrentDownload(hash, torrent);
 }
