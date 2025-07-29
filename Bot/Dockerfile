@@ -13,6 +13,7 @@ COPY mqtt/ ./mqtt/
 COPY torrent/ ./torrent/
 COPY seed.js ./
 COPY start.sh ./
+COPY state/ ./state/
 
 
 
