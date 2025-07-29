@@ -113,6 +113,7 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
    const limit = 10;
    let active = 0;
    let index = 0;
+   const retryCount = {};
 
    let lastLogTime = 0;
 
@@ -133,6 +134,12 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
       const pieceIndex = piece.index;
       const pieceHash = piece.hash;
       const piecePath = path.join(outDir, `${pieceIndex}.part`);
+
+      // 🚫 Too many retries? Skip it
+      if ((retryCount[pieceIndex] || 0) >= 5) {
+         console.warn(`🚫 Skipping piece ${pieceIndex} after 5 failed attempts`);
+         return setImmediate(next);
+      }
 
       // ✅ Check if already downloaded and valid
       // console.log(`🔍 Checking piece ${piecePath}...`);
@@ -182,29 +189,18 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
          active--;
 
          if (err) {
-            const retries = failedPieces.get(pieceIndex) || 0;
-
-            if (retries < maxRetries) {
-               console.warn(`🔁 Piece ${pieceIndex} failed (attempt ${retries + 1}/${maxRetries}), will retry`);
-               failedPieces.set(pieceIndex, retries + 1);
-               setTimeout(() => {
-                  index--; // move pointer back to retry this piece
-                  next();
-               }, 500); // slight delay
-            } else {
-               console.error(`❌ Piece ${pieceIndex} permanently failed after ${maxRetries} attempts`);
-            }
-
-            return next();
+            retryCount[pieceIndex] = (retryCount[pieceIndex] || 0) + 1; // 🔁 increment
+            console.error(`❌ Failed to download piece ${pieceIndex}:`, err.message || err);
+            return setImmediate(next); // try next piece
          }
 
          fs.writeFileSync(piecePath, buffer);
          const hash = crypto.createHash('sha1').update(buffer).digest('hex');
-
          if (hash !== pieceHash) {
+            retryCount[pieceIndex] = (retryCount[pieceIndex] || 0) + 1; // 🔁 increment
             console.warn(`❌ Hash mismatch for piece ${pieceIndex}`);
             fs.unlinkSync(piecePath);
-            return next();
+            return setImmediate(next);
          }
 
          downloadProgress.pieces.add(pieceIndex);
@@ -238,7 +234,9 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
       });
 
       // Prefetch more pieces if slots are open
-      for (let i = 0; i < limit - active; i++) next();
+      for (let i = 0; i < limit - active; i++) {
+         setImmediate(next); // avoid recursive call stack explosion
+      }
    }
 
    next(); // start downloading
