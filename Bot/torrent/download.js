@@ -20,6 +20,7 @@ try {
 let mqtt;
 
 function handleTorrentDownload(infoHash, payload) {
+
    const torrentPath = path.join(PATHS.TORRENTS_DIR, `${infoHash}${PATHS.TORRENT_EXTENSION}`);
    const outDir = path.join(PATHS.PIECES_DIR, infoHash);
    fs.mkdirSync(path.dirname(torrentPath), { recursive: true });
@@ -93,6 +94,8 @@ function handleTorrentDownload(infoHash, payload) {
 }
 
 function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProgress) {
+   const failedPieces = new Set();
+   const maxRetries = 3;
    const limit = 10;
    let active = 0;
    let index = 0;
@@ -165,8 +168,20 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
          active--;
 
          if (err) {
-            console.error(`❌ Failed to download piece ${pieceIndex}: `, err.message || err);
-            return next(); // continue with next piece
+            const retries = failedPieces.get(pieceIndex) || 0;
+
+            if (retries < maxRetries) {
+               console.warn(`🔁 Piece ${pieceIndex} failed (attempt ${retries + 1}/${maxRetries}), will retry`);
+               failedPieces.set(pieceIndex, retries + 1);
+               setTimeout(() => {
+                  index--; // move pointer back to retry this piece
+                  next();
+               }, 500); // slight delay
+            } else {
+               console.error(`❌ Piece ${pieceIndex} permanently failed after ${maxRetries} attempts`);
+            }
+
+            return next();
          }
 
          fs.writeFileSync(piecePath, buffer);
@@ -183,6 +198,8 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
          announceHave(infoHash, pieceIndex);
          maybeLogProgress();
 
+         const attemptedTotal = downloadProgress.completed + [...failedPieces.values()].filter(r => r >= maxRetries).length;
+
          if (downloadProgress.completed === downloadProgress.total) {
             const allExist = payload.pieces.every(p =>
                fs.existsSync(path.join(outDir, `${p.index}.part`))
@@ -191,6 +208,10 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
                console.log(`🎉 All pieces downloaded for ${infoHash}`);
                combineIntorrent(infoHash, payload);
             }
+         } else if (attemptedTotal === downloadProgress.total) {
+            // All attempted, but some still failed
+            const unrecoverable = [...failedPieces.entries()].filter(([_, count]) => count >= maxRetries).map(([i]) => i);
+            console.error(`🛑 Torrent ${infoHash} failed: unrecoverable pieces: ${unrecoverable.join(', ')}`);
          }
 
          next();
