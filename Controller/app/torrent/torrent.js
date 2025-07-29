@@ -11,19 +11,52 @@ async function registerTorrent(filepath) {
       }
 
       const filename = path.basename(filepath);
-      const data = fs.readFileSync(filepath);
-      const pieceLength = 16384;
+      const fileStat = fs.statSync(filepath);
+      const dataSize = fileStat.size;
+
+      // Choose piece size based on file size
+      let pieceLength;
+      if (dataSize < 100 * 1024 * 1024) pieceLength = 64 * 1024; // <100MB → 64KB
+      else if (dataSize < 1024 * 1024 * 1024) pieceLength = 512 * 1024; // <1GB → 512KB
+      else pieceLength = 1024 * 1024; // ≥1GB → 1MB
 
       const pieces = [];
-      for (let i = 0; i < data.length; i += pieceLength) {
-         const piece = data.slice(i, i + pieceLength);
-         const hash = crypto.createHash('sha1').update(piece).digest('hex');
-         pieces.push({ index: pieces.length, hash });
-      }
+      let pieceBuffer = Buffer.alloc(0);
+      let totalSize = 0;
+      let pieceIndex = 0;
+
+      console.log(`📦 Registering ${filename} (${(dataSize / 1024 / 1024).toFixed(2)} MB) with piece size ${pieceLength / 1024} KB...`);
+
+      await new Promise((resolve, reject) => {
+         const stream = fs.createReadStream(filepath);
+
+         stream.on('data', chunk => {
+            totalSize += chunk.length;
+            pieceBuffer = Buffer.concat([pieceBuffer, chunk]);
+
+            while (pieceBuffer.length >= pieceLength) {
+               const piece = pieceBuffer.slice(0, pieceLength);
+               pieceBuffer = pieceBuffer.slice(pieceLength);
+
+               const hash = crypto.createHash('sha1').update(piece).digest('hex');
+               pieces.push({ index: pieceIndex++, hash });
+            }
+         });
+
+         stream.on('end', () => {
+            if (pieceBuffer.length > 0) {
+               const hash = crypto.createHash('sha1').update(pieceBuffer).digest('hex');
+               pieces.push({ index: pieceIndex++, hash });
+            }
+            resolve();
+         });
+
+         stream.on('error', reject);
+      });
 
       const info = {
          name: filename,
-         size: data.length,
+         size: dataSize,
          pieceLength,
          pieces,
       };
@@ -31,7 +64,6 @@ async function registerTorrent(filepath) {
       const infoHash = crypto.createHash('sha1').update(JSON.stringify(info)).digest('hex');
       const torrentPath = path.join(config.TORRENTS_DIR, `${infoHash}` + config.TORRENT_EXTENSION);
 
-      // Ensure torrents directory exists
       fs.mkdirSync(path.dirname(torrentPath), { recursive: true });
       fs.writeFileSync(torrentPath, JSON.stringify(info, null, 2));
 
@@ -39,7 +71,7 @@ async function registerTorrent(filepath) {
       console.log(`🧩 Pieces: ${pieces.length}`);
       console.log(`🧠 Info hash: ${infoHash}`);
 
-      return infoHash // Return infoHash and number of pieces
+      return infoHash;
    } catch (error) {
       console.error(`❌ Error registering torrent:`, error.message);
       throw error;

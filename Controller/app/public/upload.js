@@ -12,7 +12,7 @@ form.addEventListener("submit", async (e) => {
    formData.append("torrentFile", file);
 
    try {
-      const res = await fetch("/api/torrent/register", {
+      const res = await fetch("/api/torrents/register", {
          method: "POST",
          body: formData,
       });
@@ -206,7 +206,7 @@ document.getElementById("confirmUpload").addEventListener("click", async () => {
    previewModal.style.display = "none";
 
    try {
-      const res = await fetch("/api/upload", {
+      const res = await fetch("/api/torrents/register", {
          method: "POST",
          body: formData
       });

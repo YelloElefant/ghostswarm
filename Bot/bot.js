@@ -25,7 +25,7 @@ setTimeout(() => {
 }, 5000); // Wait a bit before checking for torrents
 
 mqttClient.on('message', (topic, message) => {
-   console.log("message received on topic:", topic);
+   // console.log("message received on topic:", topic);
 
    try {
       if (topic == `ghostswarm/${botId}/command`) {
@@ -219,10 +219,10 @@ function invalidateTorrent(infoHash, torrentData) {
       console.log(`🗑️ [${botId}] Deleted output directory ${outDir}`);
    }
 
-   if (fs.existsSync(piecesDir)) {
-      fs.rmSync(piecesDir, { recursive: true });
-      console.log(`🗑️ [${botId}] Deleted pieces directory ${piecesDir}`);
-   }
+   // if (fs.existsSync(piecesDir)) {
+   //    fs.rmSync(piecesDir, { recursive: true });
+   //    console.log(`🗑️ [${botId}] Deleted pieces directory ${piecesDir}`);
+   // }
 
    download(torrentData, infoHash, mqttClient)
       .then(() => {
