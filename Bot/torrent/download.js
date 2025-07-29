@@ -169,10 +169,12 @@ function startDownloadProcess(infoHash, payload, outDir, downloadProgress) {
 }
 
 function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmMap) {
-   const MAX_CONCURRENT = 3;  // Reduced for stability
+   const MAX_CONCURRENT = 3;
    const MAX_RETRIES = 3;
+   const MAX_RESTART_ATTEMPTS = 2; // New: Allow torrent to restart
    const retryCount = new Map();
    let isComplete = false;
+   let restartAttempts = 0;
 
    const peers = getPeers();
    console.log(`👥 Found ${peers.length} peers for potential downloads`);
@@ -207,6 +209,34 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
          port: DOWNLOAD_CONFIG.CONTROLLER_PORT,
          source: 'controller'
       };
+   }
+
+   function restartFailedPieces() {
+      if (restartAttempts >= MAX_RESTART_ATTEMPTS) {
+         console.error(`🛑 Torrent ${infoHash} failed permanently after ${restartAttempts} restart attempts`);
+         isComplete = true;
+         return false;
+      }
+
+      restartAttempts++;
+      console.log(`🔄 Restarting failed pieces (attempt ${restartAttempts}/${MAX_RESTART_ATTEMPTS})`);
+
+      // Reset failed pieces and retry counts
+      const failedPieces = [...downloadProgress.failedPieces];
+      downloadProgress.failedPieces.clear();
+
+      // Reset retry counts for failed pieces
+      failedPieces.forEach(pieceIndex => {
+         retryCount.delete(pieceIndex);
+         console.log(`🔄 Resetting piece ${pieceIndex} for retry`);
+      });
+
+      // Restart downloading
+      for (let i = 0; i < Math.min(MAX_CONCURRENT, 2); i++) {
+         setTimeout(() => startNextDownload(), i * 200);
+      }
+
+      return true;
    }
 
    function downloadPiece(pieceIndex) {
@@ -260,7 +290,8 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
             // Save progress
             state.saveState(infoHash, {
                completed: downloadProgress.completed,
-               pieces: [...downloadProgress.pieces]
+               pieces: [...downloadProgress.pieces],
+               restartAttempts: restartAttempts
             });
 
             // Announce to swarm
@@ -295,10 +326,28 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
       if (nextPiece === null) {
          // No more pieces to download
          if (pendingCount === 0) {
-            // Nothing pending, check if we failed
+            // Nothing pending, check if we have failed pieces
             const remainingPieces = downloadProgress.total - downloadProgress.completed;
-            if (remainingPieces > 0) {
-               console.error(`🛑 Download incomplete: ${remainingPieces} pieces failed`);
+            const failedPieces = downloadProgress.failedPieces.size;
+
+            if (remainingPieces > 0 && failedPieces > 0) {
+               console.warn(`⚠️ ${failedPieces} pieces failed, attempting restart...`);
+
+               // Try to restart failed pieces
+               setTimeout(() => {
+                  if (!restartFailedPieces()) {
+                     console.error(`🛑 Download failed permanently for ${infoHash}`);
+                     // Mark as failed in state
+                     state.saveState(infoHash, {
+                        completed: downloadProgress.completed,
+                        pieces: [...downloadProgress.pieces],
+                        restartAttempts: restartAttempts,
+                        status: 'failed'
+                     });
+                  }
+               }, 2000); // Wait 2 seconds before restart
+            } else if (remainingPieces > 0) {
+               console.error(`🛑 Download incomplete: ${remainingPieces} pieces missing`);
                isComplete = true;
             }
          }
@@ -318,6 +367,84 @@ function startPieceDownloads(infoHash, payload, outDir, downloadProgress, swarmM
       setTimeout(() => startNextDownload(), i * 100);
    }
 }
+
+// Add restart function to handle manual restarts
+function restartTorrent(infoHash) {
+   if (!activeDownloads[infoHash]) {
+      console.warn(`⚠️ No active download found for ${infoHash}`);
+      return false;
+   }
+
+   const downloadProgress = activeDownloads[infoHash];
+   const remainingPieces = downloadProgress.total - downloadProgress.completed;
+
+   if (remainingPieces === 0) {
+      console.log(`✅ Torrent ${infoHash} is already complete`);
+      return false;
+   }
+
+   console.log(`🔄 Manually restarting torrent ${infoHash} (${remainingPieces} pieces remaining)`);
+
+   // Clear failed pieces and reset retry counts
+   downloadProgress.failedPieces.clear();
+   downloadProgress.pendingPieces.clear();
+
+   // Restart the download process
+   const torrentPath = path.join(PATHS.TORRENTS_DIR, `${infoHash}${PATHS.TORRENT_EXTENSION}`);
+
+   try {
+      const payload = JSON.parse(fs.readFileSync(torrentPath, 'utf8'));
+      const outDir = path.join(PATHS.PIECES_DIR, infoHash);
+
+      startDownloadProcess(infoHash, payload, outDir, downloadProgress);
+      return true;
+   } catch (err) {
+      console.error(`❌ Failed to restart torrent ${infoHash}: ${err.message}`);
+      return false;
+   }
+}
+
+// Add function to check and auto-restart stalled downloads
+function checkStalledDownloads() {
+   for (const [infoHash, progress] of Object.entries(activeDownloads)) {
+      const remainingPieces = progress.total - progress.completed;
+      const pendingPieces = progress.pendingPieces.size;
+      const failedPieces = progress.failedPieces.size;
+
+      // If we have remaining pieces but nothing is downloading and nothing failed recently
+      if (remainingPieces > 0 && pendingPieces === 0 && failedPieces === 0) {
+         console.warn(`⚠️ Detected stalled download for ${infoHash}, attempting restart...`);
+         restartTorrent(infoHash);
+      }
+   }
+}
+
+// Enhanced download status with restart capability
+function getDownloadStatus() {
+   const status = {};
+   for (const [infoHash, prog] of Object.entries(activeDownloads)) {
+      const remainingPieces = prog.total - prog.completed;
+      const canRestart = remainingPieces > 0;
+
+      status[infoHash] = {
+         name: prog.torrentName,
+         completed: prog.completed,
+         total: prog.total,
+         percent: ((prog.completed / prog.total) * 100).toFixed(1),
+         pending: prog.pendingPieces.size,
+         failed: prog.failedPieces.size,
+         remaining: remainingPieces,
+         canRestart: canRestart,
+         status: remainingPieces === 0 ? 'complete' :
+            prog.failedPieces.size > 0 ? 'failed' :
+               prog.pendingPieces.size > 0 ? 'downloading' : 'stalled'
+      };
+   }
+   return status;
+}
+
+// Auto-check for stalled downloads every 30 seconds
+setInterval(checkStalledDownloads, 30000);
 
 function combineIntorrent(infoHash, payload) {
    const piecePath = path.join(PATHS.PIECES_DIR, infoHash);
@@ -472,25 +599,12 @@ async function download(torrent, hash, client) {
    handleTorrentDownload(hash, torrent);
 }
 
-function getDownloadStatus() {
-   const status = {};
-   for (const [infoHash, prog] of Object.entries(activeDownloads)) {
-      status[infoHash] = {
-         name: prog.torrentName,
-         completed: prog.completed,
-         total: prog.total,
-         percent: ((prog.completed / prog.total) * 100).toFixed(1),
-         pending: prog.pendingPieces.size,
-         failed: prog.failedPieces.size
-      };
-   }
-   return status;
-}
-
 module.exports = {
    handleTorrentDownload,
    announceHave,
    download,
    requestPiece,
    getDownloadStatus,
+   restartTorrent,        // New: Manual restart function
+   checkStalledDownloads  // New: Stall detection function
 };
