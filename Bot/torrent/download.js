@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const http = require('http');
 const os = require('os');
+const state = require("../state/state");
 
 const config = require("../config.js");
 const PATHS = config.PATHS;
@@ -20,7 +21,10 @@ try {
 let mqtt;
 
 function handleTorrentDownload(infoHash, payload) {
-
+   if (activeDownloads[infoHash]) {
+      console.warn(`⚠️ Existing progress found for ${infoHash}, resetting...`);
+      delete activeDownloads[infoHash];
+   }
    const torrentPath = path.join(PATHS.TORRENTS_DIR, `${infoHash}${PATHS.TORRENT_EXTENSION}`);
    const outDir = path.join(PATHS.PIECES_DIR, infoHash);
    fs.mkdirSync(path.dirname(torrentPath), { recursive: true });
@@ -32,6 +36,14 @@ function handleTorrentDownload(infoHash, payload) {
       completed: 0,
       pieces: new Set()
    };
+
+   // Try to load saved state
+   const saved = state.loadState(infoHash);
+   if (saved) {
+      console.log(`🔁 Resuming torrent ${infoHash} from saved state`);
+      downloadProgress.completed = saved.completed;
+      downloadProgress.pieces = new Set(saved.pieces);
+   }
 
    // Resume: scan existing pieces
    payload.pieces.forEach(p => {
@@ -53,6 +65,9 @@ function handleTorrentDownload(infoHash, payload) {
       }
    });
 
+   downloadProgress.torrentName = payload.name;
+   activeDownloads[infoHash] = downloadProgress;
+
    let swarmMap = {};
    for (let i = 0; i < downloadProgress.total; i++) {
       swarmMap[i] = [];
@@ -61,8 +76,7 @@ function handleTorrentDownload(infoHash, payload) {
    const swarmUrl = `http://${DOWNLOAD_CONFIG.CONTROLLER_IP}:${DOWNLOAD_CONFIG.TRACKER_PORT}/swarm/${infoHash}`;
    http.get(swarmUrl, res => {
       let peers = getPeers();
-      downloadProgress.torrentName = payload.name;
-      activeDownloads[infoHash] = downloadProgress;
+
 
       if (res.statusCode !== 200) {
          console.error(`❌ Failed to fetch swarm map for ${infoHash}: ${res.statusCode}`);
@@ -195,6 +209,12 @@ function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProg
 
          downloadProgress.pieces.add(pieceIndex);
          downloadProgress.completed++;
+
+         state.saveState(infoHash, {
+            completed: downloadProgress.completed,
+            pieces: [...downloadProgress.pieces]
+         });
+
          announceHave(infoHash, pieceIndex);
          maybeLogProgress();
 
@@ -283,6 +303,8 @@ function combineIntorrent(infoHash, payload) {
                fs.rmSync(piecePath, { recursive: true });
                console.log(`🧹 Cleaned up ${piecePath} `);
             }
+
+            state.clearState(infoHash);
          });
       } catch (err) {
          console.error(`❌ Error combining: `, err.message);

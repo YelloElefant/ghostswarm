@@ -32,7 +32,8 @@ module.exports = {
       PIECES_DIR: "/data/pieces",                 // Directory to store downloaded pieces
       UPLOADS_DIR: "/data/uploads",               // Directory for final combined files
       SWARM_DIR: "/data/swarm",                   // Directory for swarm metadata
-      TORRENT_EXTENSION: ".ghostswarm"           // Extension for torrent metadata files
+      TORRENT_EXTENSION: ".ghostswarm",           // Extension for torrent metadata files
+      STATE_DIR: "/data/states",                 // Directory for bot states
    },
 
    DOWNLOAD_CONFIG: {

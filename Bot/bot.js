@@ -161,13 +161,16 @@ function checkForTorrents() {
 }
 
 
+const { loadState, clearState } = require('./state/state');
+
 function hashBuffer(buf) {
    return crypto.createHash('sha1').update(buf).digest('hex');
 }
 
-function checkTorrentIntegrity() {
+function checkTorrentIntegrity(botId) {
    const torrentDir = config.PATHS.TORRENTS_DIR;
    const uploadDir = config.PATHS.UPLOADS_DIR;
+   const stateDir = config.PATHS.STATE_DIR;
 
    const torrentFiles = fs.readdirSync(torrentDir)
       .filter(file => file.endsWith(config.PATHS.TORRENT_EXTENSION));
@@ -178,88 +181,96 @@ function checkTorrentIntegrity() {
       const infoHash = file.replace(config.PATHS.TORRENT_EXTENSION, '');
       const dataFilePath = path.join(uploadDir, torrentData.name);
 
-      if (!fs.existsSync(dataFilePath)) {
+      // Case 1: If final .mkv file exists, do full streamed hash check
+      if (fs.existsSync(dataFilePath)) {
+         const pieceLength = torrentData.pieceLength;
+         const pieces = torrentData.pieces;
+         const corrupted = [];
+
+         let pieceBuffer = Buffer.alloc(0);
+         let pieceIndex = 0;
+
+         const stream = fs.createReadStream(dataFilePath, { highWaterMark: pieceLength });
+
+         stream.on('data', chunk => {
+            pieceBuffer = Buffer.concat([pieceBuffer, chunk]);
+
+            while (pieceBuffer.length >= pieceLength && pieceIndex < pieces.length) {
+               const piece = pieceBuffer.slice(0, pieceLength);
+               pieceBuffer = pieceBuffer.slice(pieceLength);
+
+               const expected = pieces[pieceIndex].hash;
+               const actual = hashBuffer(piece);
+
+               if (expected !== actual) {
+                  corrupted.push(pieceIndex);
+               }
+
+               pieceIndex++;
+            }
+         });
+
+         stream.on('end', () => {
+            if (pieceBuffer.length > 0 && pieceIndex < pieces.length) {
+               const expected = pieces[pieceIndex].hash;
+               const actual = hashBuffer(pieceBuffer);
+               if (expected !== actual) {
+                  corrupted.push(pieceIndex);
+               }
+            }
+
+            if (corrupted.length > 0) {
+               console.warn(`🛑 [${botId}] CORRUPTED pieces in ${torrentData.name}: ${corrupted.join(', ')}`);
+               invalidateTorrent(infoHash, torrentData);
+            } else {
+               console.log(`✅ [${botId}] All ${pieces.length} pieces OK in ${torrentData.name}`);
+               clearState(infoHash);
+            }
+         });
+
+         stream.on('error', err => {
+            console.error(`❌ [${botId}] Error reading file ${torrentData.name}:`, err.message);
+            invalidateTorrent(infoHash, torrentData);
+         });
+
+      } else {
+         // Case 2: Final file missing
+         const statePath = path.join(stateDir, `${infoHash}.state.json`);
+         const piecePath = path.join(config.PATHS.PIECES_DIR, infoHash);
+
+         if (fs.existsSync(statePath) && fs.existsSync(piecePath)) {
+            console.warn(`⚠️ [${botId}] Final file missing but .state.json and pieces exist — will resume ${torrentData.name}`);
+            return;
+         }
+
          console.warn(`❌ [${botId}] Missing data file for torrent: ${torrentData.name}`);
          invalidateTorrent(infoHash, torrentData);
-         return;
       }
-
-      const pieceLength = torrentData.pieceLength;
-      const pieces = torrentData.pieces;
-      const corrupted = [];
-
-      let pieceBuffer = Buffer.alloc(0);
-      let pieceIndex = 0;
-      let fileOffset = 0;
-
-      const stream = fs.createReadStream(dataFilePath, { highWaterMark: pieceLength });
-
-      stream.on('data', chunk => {
-         pieceBuffer = Buffer.concat([pieceBuffer, chunk]);
-
-         while (pieceBuffer.length >= pieceLength && pieceIndex < pieces.length) {
-            const piece = pieceBuffer.slice(0, pieceLength);
-            pieceBuffer = pieceBuffer.slice(pieceLength);
-
-            const expected = pieces[pieceIndex].hash;
-            const actual = hashBuffer(piece);
-
-            if (expected !== actual) {
-               corrupted.push(pieceIndex);
-            }
-
-            pieceIndex++;
-         }
-      });
-
-      stream.on('end', () => {
-         // Handle last partial piece (if any)
-         if (pieceBuffer.length > 0 && pieceIndex < pieces.length) {
-            const expected = pieces[pieceIndex].hash;
-            const actual = hashBuffer(pieceBuffer);
-
-            if (expected !== actual) {
-               corrupted.push(pieceIndex);
-            }
-         }
-
-         if (corrupted.length > 0) {
-            console.warn(`🛑 [${botId}] CORRUPTED pieces in ${torrentData.name}: ${corrupted.join(', ')}`);
-            invalidateTorrent(infoHash, torrentData);
-         } else {
-            console.log(`✅ [${botId}] All ${pieces.length} pieces OK in ${torrentData.name}`);
-         }
-      });
-
-      stream.on('error', err => {
-         console.error(`❌ [${botId}] Error reading file ${torrentData.name}:`, err.message);
-         invalidateTorrent(infoHash, torrentData);
-      });
    });
 }
 
-function invalidateTorrent(infoHash, torrentData) {
-   const torrentPath = config.PATHS.TORRENTS_DIR + `/${infoHash}${config.PATHS.TORRENT_EXTENSION}`;
-   const outDir = config.PATHS.UPLOADS_DIR + `/${torrentData.name}`;
-   const piecesDir = config.PATHS.PIECES_DIR + `/${infoHash}`;
 
-   if (fs.existsSync(outDir)) {
-      fs.rmSync(outDir, { recursive: true });
-      console.log(`🗑️ [${botId}] Deleted output directory ${outDir}`);
+function invalidateTorrent(infoHash, torrentData) {
+   const torrentPath = path.join(config.PATHS.TORRENTS_DIR, `${infoHash}${config.PATHS.TORRENT_EXTENSION}`);
+   const outFile = path.join(config.PATHS.UPLOADS_DIR, torrentData.name);
+   const piecesDir = path.join(config.PATHS.PIECES_DIR, infoHash);
+
+   // Delete the final output file
+   if (fs.existsSync(outFile)) {
+      fs.rmSync(outFile, { recursive: true, force: true });
+      console.log(`🗑️ [${botId}] Deleted output file ${outFile}`);
    }
 
-   // if (fs.existsSync(piecesDir)) {
-   //    fs.rmSync(piecesDir, { recursive: true });
-   //    console.log(`🗑️ [${botId}] Deleted pieces directory ${piecesDir}`);
-   // }
+   // 🔁 Keep pieces directory (we'll revalidate them), but:
+   clearState(infoHash); // remove old piece tracking
 
+   // Re-initiate download — will scan `.part` files and reuse valid ones
    download(torrentData, infoHash, mqttClient)
       .then(() => {
-         console.log(`📥 [${botId}] invalidated torrent ${infoHash}`);
+         console.log(`📥 [${botId}] invalidated torrent ${infoHash}, restarting cleanly`);
       })
       .catch(err => {
          console.error(`❌ [${botId}] failed to invalidate torrent ${infoHash}:`, err);
-         // Send error response
          const statusTopic = `ghostswarm/${botId}/status`;
          mqttClient.publish(statusTopic, JSON.stringify({
             status: "error",
@@ -267,6 +278,5 @@ function invalidateTorrent(infoHash, torrentData) {
             time: Date.now()
          }));
       });
-
 }
 
