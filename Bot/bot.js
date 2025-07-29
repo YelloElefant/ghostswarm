@@ -114,16 +114,8 @@ function handleTorrentDownload(infoHash, payload) {
    const torrentPath = config.PATHS.TORRENTS_DIR + `/${infoHash}${config.PATHS.TORRENT_EXTENSION}`;
    const outDir = config.PATHS.PIECES_DIR + `/${infoHash}`;
    const uploadsDir = config.PATHS.UPLOADS_DIR + `/${payload.name}`;
-   if (fs.existsSync(outDir)) {
-      console.log(`📂 [${botId}] torrent ${infoHash} already exists in ${outDir}`);
-      return;
-   }
    if (fs.existsSync(torrentPath)) {
       console.log(`📂 [${botId}] torrent ${infoHash} already exists in ${torrentPath}`);
-      return;
-   }
-   if (fs.existsSync(uploadsDir)) {
-      console.log(`📂 [${botId}] torrent ${infoHash} already exists in ${uploadsDir}`);
       return;
    }
 
