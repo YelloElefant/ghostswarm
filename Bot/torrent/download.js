@@ -4,12 +4,12 @@ const crypto = require('crypto');
 const http = require('http');
 const os = require('os');
 const state = require("../state/state");
-
 const config = require("../config.js");
+
 const PATHS = config.PATHS;
 const DOWNLOAD_CONFIG = config.DOWNLOAD_CONFIG;
 const activeDownloads = {};
-
+let mqtt;
 
 let botId;
 try {
@@ -18,243 +18,33 @@ try {
    botId = os.hostname();
 }
 
-let mqtt;
-
-function handleTorrentDownload(infoHash, payload) {
-   if (activeDownloads[infoHash]) {
-      console.warn(`⚠️ Existing progress found for ${infoHash}, resetting...`);
-      delete activeDownloads[infoHash];
+function getPeers() {
+   try {
+      const data = fs.readFileSync(PATHS.PEER_FILE, 'utf8');
+      return JSON.parse(data);
+   } catch {
+      return [];
    }
-   const torrentPath = path.join(PATHS.TORRENTS_DIR, `${infoHash}${PATHS.TORRENT_EXTENSION}`);
-   const outDir = path.join(PATHS.PIECES_DIR, infoHash);
-   fs.mkdirSync(path.dirname(torrentPath), { recursive: true });
-   fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
-   fs.mkdirSync(outDir, { recursive: true });
-
-   const downloadProgress = {
-      total: payload.pieces.length,
-      completed: 0,
-      pieces: new Set()
-   };
-
-   // Try to load saved state
-   const saved = state.loadState(infoHash);
-   if (saved) {
-      console.log(`🔁 Resuming torrent ${infoHash} from saved state`);
-      downloadProgress.completed = saved.completed;
-      downloadProgress.pieces = new Set(saved.pieces);
-   }
-
-   // Resume: scan existing pieces
-   payload.pieces.forEach(p => {
-      const filePath = path.join(outDir, `${p.index}.part`);
-      if (fs.existsSync(filePath)) {
-         try {
-            const data = fs.readFileSync(filePath);
-            const hash = crypto.createHash('sha1').update(data).digest('hex');
-            if (hash === p.hash) {
-               downloadProgress.pieces.add(p.index);
-               downloadProgress.completed++;
-            } else {
-               console.warn(`❌ Found corrupt piece ${p.index}, will re-download`);
-               fs.unlinkSync(filePath); // Remove bad file
-            }
-         } catch (err) {
-            console.warn(`⚠️ Could not check existing piece ${p.index}: ${err.message}`);
-         }
-      }
-   });
-
-   downloadProgress.torrentName = payload.name;
-   activeDownloads[infoHash] = downloadProgress;
-
-   let swarmMap = {};
-   for (let i = 0; i < downloadProgress.total; i++) {
-      swarmMap[i] = [];
-   }
-
-   const swarmUrl = `http://${DOWNLOAD_CONFIG.CONTROLLER_IP}:${DOWNLOAD_CONFIG.TRACKER_PORT}/swarm/${infoHash}`;
-   http.get(swarmUrl, res => {
-      let peers = getPeers();
-
-
-      if (res.statusCode !== 200) {
-         console.error(`❌ Failed to fetch swarm map for ${infoHash}: ${res.statusCode}`);
-         return downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProgress);
-      }
-
-      let data = '';
-      const dest = path.join(PATHS.SWARM_DIR, `${infoHash}.json`);
-      fs.mkdirSync(PATHS.SWARM_DIR, { recursive: true });
-
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-         try {
-            const json = JSON.parse(data);
-            if (removeBotFromSwarmMap(json, botId)) {
-               console.log(`🧠 Removed self from swarm map`);
-            }
-            for (const [p, botList] of Object.entries(json)) {
-               swarmMap[p] = botList;
-            }
-            fs.writeFileSync(dest, JSON.stringify(swarmMap, null, 2));
-            console.log(`✅ Swarm map saved to ${dest}`);
-         } catch (err) {
-            console.error('❌ Failed to parse/save swarm map:', err.message);
-         }
-         downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProgress);
-      });
-   });
 }
 
-function downloadPieces(payload, swarmMap, peers, infoHash, outDir, downloadProgress) {
-   const failedPieces = new Set();
-   const maxRetries = 3;
-   const limit = 10;
-   let active = 0;
-   let index = 0;
-   const retryCount = {};
-
-   let lastLogTime = 0;
-
-   function maybeLogProgress() {
-      const now = Date.now();
-      if (now - lastLogTime > 1000) {
-         lastLogTime = now;
-         const percent = ((downloadProgress.completed / downloadProgress.total) * 100).toFixed(2);
-         console.log(`📦 Download progress: ${downloadProgress.completed}/${downloadProgress.total} pieces (${percent}%)`);
-      }
-   }
-
-   function next() {
-      if (index >= payload.pieces.length) return;
-      if (active >= limit) return;
-
-      const piece = payload.pieces[index++];
-      const pieceIndex = piece.index;
-      const pieceHash = piece.hash;
-      const piecePath = path.join(outDir, `${pieceIndex}.part`);
-
-      // 🚫 Too many retries? Skip it
-      if ((retryCount[pieceIndex] || 0) >= 5) {
-         console.warn(`🚫 Skipping piece ${pieceIndex} after 5 failed attempts`);
-         return setImmediate(next);
-      }
-
-      // ✅ Check if already downloaded and valid
-      // console.log(`🔍 Checking piece ${piecePath}...`);
-      // console.log(fs.existsSync(piecePath) ? `File exists` : `File does not exist`);
-
-
-      if (fs.existsSync(piecePath)) {
-         try {
-            const data = fs.readFileSync(piecePath);
-            const hash = crypto.createHash('sha1').update(data).digest('hex');
-            if (hash === pieceHash) {
-               downloadProgress.pieces.add(pieceIndex);
-               downloadProgress.completed++;
-               announceHave(infoHash, pieceIndex);
-
-               if (downloadProgress.completed === downloadProgress.total) {
-                  const allExist = payload.pieces.every(p =>
-                     fs.existsSync(path.join(outDir, `${p.index}.part`))
-                  );
-                  if (allExist) {
-                     console.log(`🎉 All pieces downloaded for ${infoHash}`);
-                     combineIntorrent(infoHash, payload);
-                  }
-               }
-               maybeLogProgress();
-               return next(); // 🚀 Go to next piece immediately
-            } else {
-               console.warn(`❌ Corrupt piece ${pieceIndex}, re - downloading`);
-               fs.unlinkSync(piecePath);
-            }
-         } catch (err) {
-            console.warn(`⚠️ Failed to check existing piece ${pieceIndex}: `, err.message);
-         }
-      }
-
-      // 🧠 Pick a peer for download
-      const botsWithPiece = swarmMap[pieceIndex] || [];
-      let pickedPeer = { ip: DOWNLOAD_CONFIG.CONTROLLER_IP, port: DOWNLOAD_CONFIG.CONTROLLER_PORT };
-      if (botsWithPiece.length > 0) {
-         const peerid = botsWithPiece[Math.floor(Math.random() * botsWithPiece.length)];
-         const match = peers.find(p => p.id === peerid);
-         if (match) pickedPeer = { ip: match.ip, port: 5000 };
-      }
-
-      active++;
-      requestPiece(pickedPeer.ip, pickedPeer.port, infoHash, pieceIndex, (err, buffer) => {
-         active--;
-
-         if (err) {
-            retryCount[pieceIndex] = (retryCount[pieceIndex] || 0) + 1; // 🔁 increment
-            console.error(`❌ Failed to download piece ${pieceIndex}:`, err.message || err);
-            return setImmediate(next); // try next piece
-         }
-
-         fs.writeFileSync(piecePath, buffer);
-         const hash = crypto.createHash('sha1').update(buffer).digest('hex');
-         if (hash !== pieceHash) {
-            retryCount[pieceIndex] = (retryCount[pieceIndex] || 0) + 1; // 🔁 increment
-            console.warn(`❌ Hash mismatch for piece ${pieceIndex}`);
-            fs.unlinkSync(piecePath);
-            return setImmediate(next);
-         }
-
-         downloadProgress.pieces.add(pieceIndex);
-         downloadProgress.completed++;
-
-         state.saveState(infoHash, {
-            completed: downloadProgress.completed,
-            pieces: [...downloadProgress.pieces]
-         });
-
-         announceHave(infoHash, pieceIndex);
-         maybeLogProgress();
-
-         const attemptedTotal = downloadProgress.completed + [...failedPieces.values()].filter(r => r >= maxRetries).length;
-
-         if (downloadProgress.completed === downloadProgress.total) {
-            const allExist = payload.pieces.every(p =>
-               fs.existsSync(path.join(outDir, `${p.index}.part`))
-            );
-            if (allExist) {
-               console.log(`🎉 All pieces downloaded for ${infoHash}`);
-               combineIntorrent(infoHash, payload);
-            }
-         } else if (attemptedTotal === downloadProgress.total) {
-            // All attempted, but some still failed
-            const unrecoverable = [...failedPieces.entries()].filter(([_, count]) => count >= maxRetries).map(([i]) => i);
-            console.error(`🛑 Torrent ${infoHash} failed: unrecoverable pieces: ${unrecoverable.join(', ')}`);
-         }
-
-         next();
-      });
-
-      // Prefetch more pieces if slots are open
-      for (let i = 0; i < limit - active; i++) {
-         setImmediate(next); // avoid recursive call stack explosion
-      }
-   }
-
-   next(); // start downloading
+function announceHave(infoHash, index) {
+   mqtt.publish(`ghostswarm/torrent/have/${botId}`, JSON.stringify({ infoHash, pieceIndex: index }), { qos: 1 });
 }
 
-function removeBotFromSwarmMap(swarmMap, botId) {
-   let modified = false;
-   for (const [pieceIndex, botList] of Object.entries(swarmMap)) {
-      const updatedList = botList.filter(id => id !== botId);
-      if (updatedList.length !== botList.length) {
-         swarmMap[pieceIndex] = updatedList;
-         modified = true;
-      }
-      if (updatedList.length === 0) {
-         delete swarmMap[pieceIndex];
-      }
+function requestPiece(ip, port, infoHash, pieceIndex, cb) {
+   http.get(`http://${ip}:${port}/piece/${infoHash}/${pieceIndex}`, res => {
+      if (res.statusCode !== 200) return cb(new Error(res.statusMessage));
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => cb(null, Buffer.concat(chunks)));
+   }).on('error', cb);
+}
+
+function removeSelfFromSwarm(swarmMap, botId) {
+   for (const [i, bots] of Object.entries(swarmMap)) {
+      swarmMap[i] = bots.filter(b => b !== botId);
    }
-   return modified;
+   return swarmMap;
 }
 
 function combineIntorrent(infoHash, payload) {
@@ -262,96 +52,123 @@ function combineIntorrent(infoHash, payload) {
    const finalFile = path.join(PATHS.UPLOADS_DIR, payload.name);
    fs.mkdirSync(PATHS.UPLOADS_DIR, { recursive: true });
 
-   console.log(`🔄 Combining pieces into ${finalFile} `);
    const writeStream = fs.createWriteStream(finalFile);
-   let totalWritten = 0;
+   let i = 0;
 
-   (async () => {
-      try {
-         for (let i = 0; i < payload.pieces.length; i++) {
-            const partPath = path.join(piecePath, `${i}.part`);
-            if (!fs.existsSync(partPath)) {
-               throw new Error(`❌ Missing piece ${i} `);
-            }
+   function next() {
+      if (i >= payload.pieces.length) return writeStream.end();
 
-            await new Promise((resolve, reject) => {
-               const readStream = fs.createReadStream(partPath);
-               readStream.on('error', reject);
-               readStream.on('end', () => {
-                  fs.unlinkSync(partPath); // optional cleanup
-                  resolve();
-               });
-               readStream.pipe(writeStream, { end: false });
-            });
-         }
+      const partPath = path.join(piecePath, `${i}.part`);
+      const read = fs.createReadStream(partPath);
+      read.on('end', () => {
+         fs.unlinkSync(partPath);
+         i++;
+         next();
+      });
+      read.pipe(writeStream, { end: false });
+   }
 
-         writeStream.end();
-         writeStream.on('finish', () => {
-            delete activeDownloads[infoHash];
-            const stats = fs.statSync(finalFile);
-            console.log(`📦 Final size: ${stats.size} bytes`);
-
-            if (stats.size === payload.size) {
-               console.log(`✅ File assembled correctly`);
-            } else {
-               console.warn(`⚠️ File size mismatch! Expected ${payload.size}, got ${stats.size} `);
-            }
-
-            if (fs.existsSync(piecePath)) {
-               fs.rmSync(piecePath, { recursive: true });
-               console.log(`🧹 Cleaned up ${piecePath} `);
-            }
-
-            state.clearState(infoHash);
-         });
-      } catch (err) {
-         console.error(`❌ Error combining: `, err.message);
-         writeStream.destroy();
-         fs.existsSync(finalFile) && fs.unlinkSync(finalFile);
-      }
-   })();
-}
-
-function requestPiece(ip, port, infoHash, pieceIndex, cb) {
-   const options = {
-      hostname: ip,
-      port: port,
-      path: `/piece/${infoHash}/${pieceIndex}`,
-      method: 'GET'
-   };
-
-   const req = http.request(options, res => {
-      if (res.statusCode !== 200) return cb(new Error(res.statusMessage));
-      const data = [];
-      res.on('data', chunk => data.push(chunk));
-      res.on('end', () => cb(null, Buffer.concat(data)));
+   writeStream.on('finish', () => {
+      state.clearState(infoHash);
+      fs.rmSync(piecePath, { recursive: true, force: true });
+      console.log(`✅ Combined ${infoHash} to ${finalFile}`);
    });
 
-   req.on('error', cb);
-   req.end();
+   next();
 }
 
-function announceHave(infoHash, index) {
-   const topic = `ghostswarm/torrent/have/${botId}`;
-   const msg = { infoHash, pieceIndex: index };
-   mqtt.publish(topic, JSON.stringify(msg), { qos: 1 });
-}
+function downloadPieces(infoHash, payload, swarmMap, peers, outDir, progress) {
+   const pending = payload.pieces.filter(p => !progress.pieces.has(p.index));
+   const limit = 10;
+   let active = 0;
+   const retry = {};
 
-function getPeers() {
-   try {
-      const data = fs.readFileSync(PATHS.PEER_FILE, 'utf8');
-      return JSON.parse(data);
-   } catch (err) {
-      console.error(`❌ Failed to read peers:`, err);
-      return [];
+   function downloadNextPiece() {
+      if (progress.completed >= progress.total) return;
+
+      while (active < limit && pending.length > 0) {
+         const piece = pending.shift();
+         const pathPart = path.join(outDir, `${piece.index}.part`);
+
+         if (fs.existsSync(pathPart)) {
+            const hash = crypto.createHash('sha1').update(fs.readFileSync(pathPart)).digest('hex');
+            if (hash === piece.hash) {
+               progress.pieces.add(piece.index);
+               progress.completed++;
+               announceHave(infoHash, piece.index);
+               continue;
+            } else {
+               fs.unlinkSync(pathPart);
+            }
+         }
+
+         let peer = { ip: DOWNLOAD_CONFIG.CONTROLLER_IP, port: DOWNLOAD_CONFIG.CONTROLLER_PORT };
+         const candidates = swarmMap[piece.index] || [];
+         if (candidates.length) {
+            const peerId = candidates[Math.floor(Math.random() * candidates.length)];
+            const found = peers.find(p => p.id === peerId);
+            if (found) peer = { ip: found.ip, port: 5000 };
+         }
+
+         active++;
+         requestPiece(peer.ip, peer.port, infoHash, piece.index, (err, data) => {
+            active--;
+            if (err || crypto.createHash('sha1').update(data).digest('hex') !== piece.hash) {
+               retry[piece.index] = (retry[piece.index] || 0) + 1;
+               if (retry[piece.index] < 5) pending.push(piece);
+            } else {
+               fs.writeFileSync(pathPart, data);
+               progress.pieces.add(piece.index);
+               progress.completed++;
+               state.saveState(infoHash, { completed: progress.completed, pieces: [...progress.pieces] });
+               announceHave(infoHash, piece.index);
+               if (progress.completed >= progress.total) combineIntorrent(infoHash, payload);
+            }
+         });
+      }
    }
+
+   setInterval(downloadNextPiece, 250);
 }
 
-async function download(torrent, hash, client) {
+function handleTorrentDownload(infoHash, payload) {
+   const outDir = path.join(PATHS.PIECES_DIR, infoHash);
+   const torrentPath = path.join(PATHS.TORRENTS_DIR, `${infoHash}${PATHS.TORRENT_EXTENSION}`);
+   fs.mkdirSync(outDir, { recursive: true });
+   fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
+
+   const progress = { total: payload.pieces.length, completed: 0, pieces: new Set() };
+   const saved = state.loadState(infoHash);
+   if (saved) {
+      progress.completed = saved.completed;
+      progress.pieces = new Set(saved.pieces);
+   }
+
+   activeDownloads[infoHash] = progress;
+
+   const swarmUrl = `http://${DOWNLOAD_CONFIG.CONTROLLER_IP}:${DOWNLOAD_CONFIG.TRACKER_PORT}/swarm/${infoHash}`;
+   http.get(swarmUrl, res => {
+      const buf = [];
+      res.on('data', d => buf.push(d));
+      res.on('end', () => {
+         let swarmMap = {};
+         try {
+            swarmMap = JSON.parse(Buffer.concat(buf));
+            swarmMap = removeSelfFromSwarm(swarmMap, botId);
+            fs.writeFileSync(path.join(PATHS.SWARM_DIR, `${infoHash}.json`), JSON.stringify(swarmMap, null, 2));
+         } catch { }
+         downloadPieces(infoHash, payload, swarmMap, getPeers(), outDir, progress);
+      });
+   }).on('error', () => {
+      console.error(`⚠️ Failed to fetch swarm for ${infoHash}`);
+      downloadPieces(infoHash, payload, {}, getPeers(), outDir, progress);
+   });
+}
+
+function download(torrent, hash, client) {
    mqtt = client;
    handleTorrentDownload(hash, torrent);
 }
-
 
 function getDownloadStatus() {
    const status = {};
@@ -367,9 +184,7 @@ function getDownloadStatus() {
 }
 
 module.exports = {
-   handleTorrentDownload,
-   announceHave,
    download,
-   requestPiece,
+   announceHave,
    getDownloadStatus,
 };
