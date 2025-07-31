@@ -2,6 +2,7 @@ services:
   bot:
     build: .
     container_name: ghostswarm-bot1
+    network_mode: "host" # Use host networking
     environment:
       - BOT_ID=bigppserver2
       - MQTT_BROKER_URL=mqtt://100.76.233.82:1883
@@ -9,14 +10,5 @@ services:
     volumes:
       - /etc/hostname:/host_hostname:ro
       - ./data:/data
-      # Mount Tailscale (same as controller)
-      - /home/yelloelefant/tailscale/data:/var/lib/tailscale
-      - /var/run/tailscale:/var/run/tailscale
-    ports:
-      - "5000:5000"
     restart: unless-stopped
-    # Add network capabilities for Tailscale
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun
+    # No port mapping needed with host mode
