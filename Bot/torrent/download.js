@@ -703,6 +703,10 @@ class TorrentDownloader {
          }
       }
 
+      this.announceToTracker(pieceIndex);
+   }
+
+   announceToTracker(pieceIndex) {
       // Announce to tracker if connected
       if (this.trackerWs && this.trackerWs.readyState === WebSocket.OPEN) {
          try {
