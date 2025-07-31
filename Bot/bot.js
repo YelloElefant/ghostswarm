@@ -22,6 +22,7 @@ startHeartbeat(mqttClient);
 
 
 setTimeout(() => {
+   cleanupCorruptedFiles();
    checkForTorrents();
    checkTorrentIntegrity();
 }, 5000); // Wait a bit before checking for torrents
@@ -46,10 +47,28 @@ mqttClient.on('message', (topic, message) => {
 
       else if (topic.startsWith('ghostswarm/torrent/have/')) {
          const bot = topic.split('/')[3];
-         const { infoHash, pieceIndex } = JSON.parse(message.toString());
+
+         // Better message parsing
+         let messageData;
+         try {
+            messageData = JSON.parse(message.toString());
+         } catch (parseErr) {
+            console.error(`❌ [${botId}] invalid JSON in have message from ${bot}: ${parseErr.message}`);
+            return;
+         }
+
+         const { infoHash, pieceIndex } = messageData;
+
          if (bot == botId) {
             return;
          }
+
+         // Validate data before processing
+         if (!infoHash || pieceIndex === undefined || pieceIndex === null) {
+            console.error(`❌ [${botId}] invalid have message from ${bot}: missing infoHash or pieceIndex`);
+            return;
+         }
+
          updateSwarmMap(infoHash, pieceIndex, bot);
       }
 
@@ -61,7 +80,6 @@ mqttClient.on('message', (topic, message) => {
       }
 
       else if (topic.startsWith('ghostswarm/torrent/delete/')) {
-
          const infoHash = topic.split('/')[3];
          console.log(`📥 [${botId}] received torrent delete request for ${infoHash}`);
          deleteTorrent(infoHash, mqttClient);
@@ -72,15 +90,20 @@ mqttClient.on('message', (topic, message) => {
          // save peers to file
          const peerFile = config.PATHS.PEER_FILE;
          fs.mkdirSync(path.dirname(peerFile), { recursive: true });
-         fs.writeFileSync(peerFile, JSON.stringify(peers, null, 2));
-         // console.log(`📡 [${botId}] saved peers to ${peerFile}`);
+
+         // Safe file writing
+         try {
+            const tempFile = peerFile + '.tmp';
+            fs.writeFileSync(tempFile, JSON.stringify(peers, null, 2));
+            fs.renameSync(tempFile, peerFile);
+            // console.log(`📡 [${botId}] saved peers to ${peerFile}`);
+         } catch (err) {
+            console.error(`❌ [${botId}] failed to save peers: ${err.message}`);
+         }
       }
-
-
-
-
    } catch (err) {
-      console.error(`❌ [${botId}] failed to handle message`, err);
+      console.error(`❌ [${botId}] failed to handle message on topic ${topic}:`, err.message);
+      console.error(`❌ [${botId}] message content:`, message.toString());
 
       // Send error response
       const statusTopic = `ghostswarm/${botId}/status`;
@@ -92,21 +115,76 @@ mqttClient.on('message', (topic, message) => {
    }
 });
 
+// Bot/bot.js - Fix the updateSwarmMap function with better error handling
 function updateSwarmMap(infoHash, pieceIndex, who) {
    const swarmFile = config.PATHS.SWARM_DIR + `/${infoHash}.json`;
    fs.mkdirSync(path.dirname(swarmFile), { recursive: true });
 
    let map = {};
+
+   // Better JSON parsing with error handling
    if (fs.existsSync(swarmFile)) {
-      map = JSON.parse(fs.readFileSync(swarmFile));
+      try {
+         const fileContent = fs.readFileSync(swarmFile, 'utf8').trim();
+
+         // Check if file is empty or only whitespace
+         if (fileContent.length === 0) {
+            console.warn(`⚠️ [${botId}] empty swarm file ${swarmFile}, initializing new map`);
+            map = {};
+         } else {
+            map = JSON.parse(fileContent);
+         }
+      } catch (err) {
+         console.error(`❌ [${botId}] corrupted swarm file ${swarmFile}: ${err.message}`);
+         console.log(`🔄 [${botId}] initializing new swarm map for ${infoHash}`);
+
+         // Backup corrupted file
+         const backupFile = swarmFile + '.corrupted.' + Date.now();
+         try {
+            fs.renameSync(swarmFile, backupFile);
+            console.log(`📁 [${botId}] backed up corrupted file to ${backupFile}`);
+         } catch (backupErr) {
+            console.warn(`⚠️ [${botId}] could not backup corrupted file: ${backupErr.message}`);
+         }
+
+         map = {};
+      }
    }
 
    const key = pieceIndex.toString();
    if (!map[key]) map[key] = [];
    if (!map[key].includes(who)) map[key].push(who);
 
-   fs.writeFileSync(swarmFile, JSON.stringify(map, null, 2));
-   // console.log(`🧠 Swarm updated: piece ${pieceIndex} held by ${who}`);
+   // Safe JSON writing with atomic operation
+   try {
+      const tempFile = swarmFile + '.tmp';
+      fs.writeFileSync(tempFile, JSON.stringify(map, null, 2));
+      fs.renameSync(tempFile, swarmFile);
+      // console.log(`🧠 Swarm updated: piece ${pieceIndex} held by ${who}`);
+   } catch (err) {
+      console.error(`❌ [${botId}] failed to update swarm map: ${err.message}`);
+   }
+}
+
+// Also add error handling to announceCompleteTorrent
+function announceCompleteTorrent(infoHash, payload) {
+   try {
+      // Announce that we have all pieces to the swarm
+      for (let i = 0; i < payload.pieces.length; i++) {
+         updateSwarmMap(infoHash, i, botId);
+
+         // Also announce via MQTT
+         const topic = `ghostswarm/torrent/have/${botId}`;
+         mqttClient.publish(topic, JSON.stringify({
+            infoHash: infoHash,
+            pieceIndex: i
+         }), { qos: 1 });
+      }
+
+      console.log(`📢 [${botId}] announced complete torrent ${infoHash} to swarm`);
+   } catch (err) {
+      console.error(`❌ [${botId}] failed to announce complete torrent ${infoHash}: ${err.message}`);
+   }
 }
 
 function handleTorrentDownloadRequest(infoHash, payload) {
@@ -352,6 +430,56 @@ function invalidateTorrent(infoHash, torrentData) {
    // Restart download
    restartDownload(infoHash, torrentData);
    console.log(`📥 [${botId}] invalidated and restarting torrent ${infoHash}`);
+}
+
+// Bot/bot.js - Add cleanup function
+function cleanupCorruptedFiles() {
+   const swarmDir = config.PATHS.SWARM_DIR;
+
+   if (!fs.existsSync(swarmDir)) {
+      return;
+   }
+
+   console.log(`🧹 [${botId}] cleaning up corrupted swarm files...`);
+
+   const files = fs.readdirSync(swarmDir);
+   let cleaned = 0;
+
+   files.forEach(file => {
+      if (file.endsWith('.json')) {
+         const filePath = path.join(swarmDir, file);
+
+         try {
+            const content = fs.readFileSync(filePath, 'utf8').trim();
+
+            if (content.length === 0) {
+               console.log(`🗑️ [${botId}] removing empty swarm file: ${file}`);
+               fs.unlinkSync(filePath);
+               cleaned++;
+            } else {
+               // Try to parse JSON
+               JSON.parse(content);
+            }
+         } catch (err) {
+            console.log(`🗑️ [${botId}] removing corrupted swarm file: ${file}`);
+
+            // Backup before deleting
+            const backupFile = filePath + '.corrupted.' + Date.now();
+            try {
+               fs.renameSync(filePath, backupFile);
+               cleaned++;
+            } catch (renameErr) {
+               console.warn(`⚠️ [${botId}] could not backup corrupted file ${file}`);
+               fs.unlinkSync(filePath);
+               cleaned++;
+            }
+         }
+      }
+   });
+
+   if (cleaned > 0) {
+      console.log(`🧹 [${botId}] cleaned up ${cleaned} corrupted swarm files`);
+   }
 }
 
 // Add periodic status reporting
