@@ -10,5 +10,6 @@ services:
       - /etc/hostname:/host_hostname:ro
       - ./data:/data
     ports:
-      - "5002:5000" # Port for the seeder service
+      - "5000:5000" # Port for the seeder service
     restart: unless-stopped
+
