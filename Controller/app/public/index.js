@@ -1,5 +1,6 @@
 let nodes = [];
 let selectedBot = null;
+let updateInterval = null;
 
 async function drawSwarmGraph() {
    const res = await fetch("api/bots/");
@@ -30,8 +31,22 @@ async function drawSwarmGraph() {
       return true;
    }
 
-   if (arraysEqualByProps(tempNodes, nodes)) {
-      console.log("No changes in nodes, skipping redraw");
+   const needsRedraw = !arraysEqualByProps(tempNodes, nodes);
+
+   if (!needsRedraw) {
+      console.log("No structural changes, updating node classes only");
+
+      // Update node classes even if no redraw is needed
+      updateNodeClasses(tempNodes);
+
+      // Update selected bot data if side panel is open
+      if (selectedBot && document.getElementById("sidePanel").classList.contains("open")) {
+         const updatedBot = bots.find(bot => bot.id === selectedBot.id);
+         if (updatedBot) {
+            selectedBot = updatedBot;
+            updateBotDetails(updatedBot);
+         }
+      }
       return;
    }
 
@@ -91,11 +106,7 @@ async function drawSwarmGraph() {
 
    node.append("circle")
       .attr("r", 16)
-      .attr("class", d => {
-         if (!d.alive) return "dead";
-         if (d.downloading) return "downloading";
-         return "alive";
-      });
+      .attr("class", d => getNodeClass(d));
 
    node.append("text")
       .text(d => d.id)
@@ -135,73 +146,120 @@ async function drawSwarmGraph() {
       selectedBot = d.data;
       showBotDetails(d.data);
       document.getElementById("sidePanel").classList.add("open");
+
+      // Start continuous updates for side panel
+      startSidePanelUpdates();
    });
+
+   // Update selected bot data if side panel is open
+   if (selectedBot && document.getElementById("sidePanel").classList.contains("open")) {
+      const updatedBot = bots.find(bot => bot.id === selectedBot.id);
+      if (updatedBot) {
+         selectedBot = updatedBot;
+         updateBotDetails(updatedBot);
+      }
+   }
+}
+
+// Helper function to determine node class based on bot status
+function getNodeClass(node) {
+   if (!node.alive) return "dead";
+   if (node.downloading) return "downloading";
+   return "alive";
+}
+
+// Function to update node classes without redrawing the entire graph
+function updateNodeClasses(updatedNodes) {
+   const svg = d3.select("#swarmGraph");
+   const nodeGroups = svg.selectAll(".node");
+
+   // Update each node's class based on current data
+   nodeGroups.each(function (d) {
+      const updatedNode = updatedNodes.find(n => n.id === d.id);
+      if (updatedNode) {
+         // Update the node data
+         d.alive = updatedNode.alive;
+         d.downloading = updatedNode.downloading;
+         d.data = updatedNode.data;
+
+         // Update the circle class
+         const circle = d3.select(this).select("circle");
+         circle
+            .attr("class", getNodeClass(updatedNode))
+            .classed("selected", circle.classed("selected")); // Preserve selected state
+      }
+   });
+
+   // Update the global nodes array
+   nodes = updatedNodes;
+}
+
+function startSidePanelUpdates() {
+   // Clear any existing interval
+   if (updateInterval) {
+      clearInterval(updateInterval);
+   }
+
+   // Start new interval for faster updates when side panel is open
+   updateInterval = setInterval(async () => {
+      if (selectedBot && document.getElementById("sidePanel").classList.contains("open")) {
+         try {
+            const res = await fetch("api/bots/");
+            const bots = await res.json();
+            const updatedBot = bots.find(bot => bot.id === selectedBot.id);
+
+            if (updatedBot) {
+               selectedBot = updatedBot;
+               updateBotDetails(updatedBot);
+            }
+         } catch (error) {
+            console.error("Failed to update bot details:", error);
+         }
+      } else {
+         // Stop the interval if side panel is closed
+         clearInterval(updateInterval);
+         updateInterval = null;
+      }
+   }, 1000); // Update every 1 second when side panel is open
 }
 
 function showBotDetails(bot) {
    const sidePanel = document.getElementById("sidePanel");
 
-   // Calculate progress percentages
-   const totalProgress = bot.stats.totalPieces > 0
-      ? Math.round((bot.stats.downloadedPieces / bot.stats.totalPieces) * 100)
-      : 0;
+   // Create the full HTML structure
+   createBotDetailsHTML(bot);
+
+   // Re-attach form handler
+   document.getElementById("cmdForm").addEventListener("submit", handleCommandSubmit);
+}
+
+function updateBotDetails(bot) {
+   // Only update the dynamic content, preserve form state
+   updateBotInfo(bot);
+   updateDownloadStats(bot);
+   updateDownloadList(bot);
+}
+
+function createBotDetailsHTML(bot) {
+   const sidePanel = document.getElementById("sidePanel");
 
    sidePanel.innerHTML = `
       <button class="close-panel" onclick="closeSidePanel()">&times;</button>
       
       <h2>Bot Details</h2>
       
-      <div class="bot-info ${!bot.alive ? 'dead' : (bot.stats.activeDownloads > 0 ? 'downloading' : '')}">
-         <div><strong>ID:</strong> ${bot.id}</div>
-         <div><strong>IP:</strong> ${bot.ip}</div>
-         <div><strong>Status:</strong> ${bot.alive ? '🟢 Online' : '🔴 Offline'}</div>
-         <div><strong>Last Seen:</strong> ${bot.lastSeen}</div>
+      <div id="bot-info-container">
+         <!-- Bot info will be updated here -->
       </div>
 
       <h3>Download Statistics</h3>
-      <div class="status-grid">
-         <div class="status-item">
-            <span class="label">Total Downloads</span>
-            <span class="value">${bot.stats.totalDownloads}</span>
-         </div>
-         <div class="status-item">
-            <span class="label">Active</span>
-            <span class="value">${bot.stats.activeDownloads}</span>
-         </div>
-         <div class="status-item">
-            <span class="label">Completed</span>
-            <span class="value">${bot.stats.completedDownloads}</span>
-         </div>
-         <div class="status-item">
-            <span class="label">Progress</span>
-            <span class="value">${totalProgress}%</span>
-         </div>
+      <div id="stats-container" class="status-grid">
+         <!-- Stats will be updated here -->
       </div>
 
-      ${Object.keys(bot.downloads).length > 0 ? `
-      <h3>Active Downloads</h3>
-      <div class="download-list">
-         ${Object.entries(bot.downloads).map(([infoHash, download]) => {
-      const progress = download.totalPieces > 0
-         ? Math.round((download.downloadedPieces / download.totalPieces) * 100)
-         : 0;
-
-      return `
-               <div class="download-item ${download.status}">
-                  <div class="download-name">${download.name || infoHash.slice(0, 8)}...</div>
-                  <div class="progress-bar">
-                     <div class="progress-fill" style="width: ${progress}%"></div>
-                  </div>
-                  <div class="download-progress">
-                     <span>${download.downloadedPieces}/${download.totalPieces} pieces</span>
-                     <span>${download.status}</span>
-                  </div>
-                  ${download.peers ? `<div style="font-size: 11px; color: #aaa;">Peers: ${download.peers}</div>` : ''}
-               </div>
-            `;
-   }).join('')}
+      <div id="downloads-container">
+         <!-- Downloads will be updated here -->
       </div>
-      ` : '<p style="color: #aaa;">No active downloads</p>'}
 
       <h3>Send Command</h3>
       <form id="cmdForm">
@@ -213,14 +271,109 @@ function showBotDetails(bot) {
       </form>
    `;
 
-   // Re-attach form handler
-   document.getElementById("cmdForm").addEventListener("submit", handleCommandSubmit);
+   // Initial update
+   updateBotInfo(bot);
+   updateDownloadStats(bot);
+   updateDownloadList(bot);
+}
+
+function updateBotInfo(bot) {
+   const container = document.getElementById("bot-info-container");
+   if (!container) return;
+
+   container.innerHTML = `
+      <div class="bot-info ${!bot.alive ? 'dead' : (bot.stats.activeDownloads > 0 ? 'downloading' : '')}">
+         <div><strong>ID:</strong> ${bot.id}</div>
+         <div><strong>IP:</strong> ${bot.ip}</div>
+         <div><strong>Status:</strong> ${bot.alive ? '🟢 Online' : '🔴 Offline'}</div>
+         <div><strong>Last Seen:</strong> ${bot.lastSeen}</div>
+         <div><strong>Last Updated:</strong> ${new Date().toLocaleTimeString()}</div>
+      </div>
+   `;
+}
+
+function updateDownloadStats(bot) {
+   const container = document.getElementById("stats-container");
+   if (!container) return;
+
+   const totalProgress = bot.stats.totalPieces > 0
+      ? Math.round((bot.stats.downloadedPieces / bot.stats.totalPieces) * 100)
+      : 0;
+
+   container.innerHTML = `
+      <div class="status-item">
+         <span class="label">Total Downloads</span>
+         <span class="value">${bot.stats.totalDownloads}</span>
+      </div>
+      <div class="status-item">
+         <span class="label">Active</span>
+         <span class="value">${bot.stats.activeDownloads}</span>
+      </div>
+      <div class="status-item">
+         <span class="label">Completed</span>
+         <span class="value">${bot.stats.completedDownloads}</span>
+      </div>
+      <div class="status-item">
+         <span class="label">Progress</span>
+         <span class="value">${totalProgress}%</span>
+      </div>
+   `;
+}
+
+function updateDownloadList(bot) {
+   const container = document.getElementById("downloads-container");
+   if (!container) return;
+
+   if (Object.keys(bot.downloads).length > 0) {
+      container.innerHTML = `
+         <h3>Active Downloads</h3>
+         <div class="download-list">
+            ${Object.entries(bot.downloads).map(([infoHash, download]) => {
+         // Use correct field names from the status object
+         const progress = download.total > 0
+            ? Math.round((download.completed / download.total) * 100)
+            : 0;
+
+         // Get status with proper color coding
+         let statusClass = download.status;
+         if (download.status === 'completed') statusClass = 'completed';
+         else if (download.status === 'stalled' || download.status === 'error') statusClass = 'error';
+
+         return `
+                  <div class="download-item ${statusClass}">
+                     <div class="download-name">${download.name || infoHash.slice(0, 8)}...</div>
+                     <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${progress}%"></div>
+                     </div>
+                     <div class="download-progress">
+                        <span>${download.completed}/${download.total} pieces (${download.percent}%)</span>
+                        <span>${download.status}</span>
+                     </div>
+                     <div style="font-size: 11px; color: #aaa;">
+                        Peers: ${download.peers || 0} | 
+                        Queue: ${download.queue || 0} | 
+                        Failed: ${download.failed || 0}
+                     </div>
+                  </div>
+               `;
+      }).join('')}
+         </div>
+      `;
+   } else {
+      container.innerHTML = '<p style="color: #aaa;">No active downloads</p>';
+   }
 }
 
 function closeSidePanel() {
    document.getElementById("sidePanel").classList.remove("open");
    d3.selectAll("circle").classed("selected", false);
    selectedBot = null;
+
+   // Stop continuous updates
+   if (updateInterval) {
+      clearInterval(updateInterval);
+      updateInterval = null;
+   }
 }
 
 async function handleCommandSubmit(e) {
