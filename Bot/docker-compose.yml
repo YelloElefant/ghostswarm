@@ -9,7 +9,14 @@ services:
     volumes:
       - /etc/hostname:/host_hostname:ro
       - ./data:/data
+      # Mount Tailscale (same as controller)
+      - /home/yelloelefant/tailscale/data:/var/lib/tailscale
+      - /var/run/tailscale:/var/run/tailscale
     ports:
-      - "5000:5000" # Port for the seeder service
+      - "5000:5000"
     restart: unless-stopped
-
+    # Add network capabilities for Tailscale
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
