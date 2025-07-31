@@ -281,6 +281,23 @@ function updateBotInfo(bot) {
    const container = document.getElementById("bot-info-container");
    if (!container) return;
 
+   // Calculate memory usage percentage
+   let memoryColor = '#4a9eff';
+   let memoryUsage = 'N/A';
+
+   if (bot.metadata?.memory) {
+      const usage = bot.metadata.memory.used;
+      const total = bot.metadata.memory.total;
+      const percentage = Math.round((usage / total) * 100);
+
+      memoryUsage = `${usage}/${total}MB (${percentage}%)`;
+
+      // Color code based on usage
+      if (percentage > 80) memoryColor = '#ff4444';
+      else if (percentage > 60) memoryColor = '#ffa500';
+      else memoryColor = '#28e96a';
+   }
+
    container.innerHTML = `
       <div class="bot-info ${!bot.alive ? 'dead' : (bot.stats.activeDownloads > 0 ? 'downloading' : '')}">
          <div><strong>ID:</strong> ${bot.id}</div>
@@ -288,6 +305,36 @@ function updateBotInfo(bot) {
          <div><strong>Status:</strong> ${bot.alive ? '🟢 Online' : '🔴 Offline'}</div>
          <div><strong>Last Seen:</strong> ${bot.lastSeen}</div>
          <div><strong>Last Updated:</strong> ${new Date().toLocaleTimeString()}</div>
+      </div>
+
+      <h3>System Information</h3>
+      <div class="system-info">
+         <div class="system-grid">
+            <div class="system-item">
+               <span class="label">Platform</span>
+               <span class="value">${bot.metadata?.platform || 'unknown'}</span>
+            </div>
+            <div class="system-item">
+               <span class="label">Architecture</span>
+               <span class="value">${bot.metadata?.arch || 'unknown'}</span>
+            </div>
+            <div class="system-item">
+               <span class="label">Memory Usage</span>
+               <span class="value" style="color: ${memoryColor}">${memoryUsage}</span>
+            </div>
+            <div class="system-item">
+               <span class="label">Uptime</span>
+               <span class="value">${formatUptime(bot.stats?.uptime || 0)}</span>
+            </div>
+            <div class="system-item">
+               <span class="label">Node Version</span>
+               <span class="value">${bot.metadata?.nodeVersion || 'unknown'}</span>
+            </div>
+            <div class="system-item">
+               <span class="label">CPU Cores</span>
+               <span class="value">${bot.metadata?.cpuCount || 'unknown'}</span>
+            </div>
+         </div>
       </div>
    `;
 }
@@ -349,15 +396,38 @@ function updateDownloadList(bot) {
          <h3>Active Downloads</h3>
          <div class="download-list">
             ${Object.entries(bot.downloads).map(([infoHash, download]) => {
-         // Use correct field names from the status object
          const progress = download.total > 0
             ? Math.round((download.completed / download.total) * 100)
             : 0;
 
-         // Get status with proper color coding
-         let statusClass = download.status;
-         if (download.status === 'completed') statusClass = 'completed';
-         else if (download.status === 'stalled' || download.status === 'error') statusClass = 'error';
+         // Better status classification
+         let statusClass = 'downloading'; // default
+         let statusText = download.status;
+
+         switch (download.status) {
+            case 'completed':
+               statusClass = 'completed';
+               statusText = '✅ Complete';
+               break;
+            case 'downloading':
+               statusClass = 'downloading';
+               statusText = '⬇️ Downloading';
+               break;
+            case 'stalled':
+               statusClass = 'stalled';
+               statusText = '⏸️ Stalled';
+               break;
+            case 'no_peers':
+               statusClass = 'error';
+               statusText = '👥 No Peers';
+               break;
+            case 'failed':
+               statusClass = 'error';
+               statusText = '❌ Failed';
+               break;
+            default:
+               statusText = download.status;
+         }
 
          return `
                   <div class="download-item ${statusClass}">
@@ -367,7 +437,7 @@ function updateDownloadList(bot) {
                      </div>
                      <div class="download-progress">
                         <span>${download.completed}/${download.total} pieces (${download.percent}%)</span>
-                        <span>${download.status}</span>
+                        <span>${statusText}</span>
                      </div>
                      <div style="font-size: 11px; color: #aaa;">
                         Peers: ${download.peers || 0} | 

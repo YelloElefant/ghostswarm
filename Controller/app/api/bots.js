@@ -57,7 +57,8 @@ router.get('/', async (req, res) => {
                      uptime: status.stats?.uptime || status.uptime || 0,
                      version: status.version || 'unknown',
                      platform: status.system?.platform || status.platform || 'unknown',
-                     memory: status.system?.memory || null
+                     memory: status.system?.memory || null,
+                     arch: status.system?.arch || 'unknown'
                   }
                });
             }

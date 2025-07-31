@@ -216,12 +216,38 @@ circle.selected {
    border-left: 3px solid #ffa500;
 }
 
+.download-item.downloading {
+   border-left-color: #ffa500;
+   animation: download-pulse 2s infinite;
+}
+
+.download-item.downloading .progress-fill {
+   background: linear-gradient(90deg, #ffa500, #ff6b00);
+   animation: progress-shimmer 2s infinite;
+}
+
+.download-item.stalled {
+   border-left-color: #ff9500;
+}
+
+.download-item.stalled .progress-fill {
+   background: #ff9500;
+}
+
 .download-item.completed {
    border-left-color: #28e96a;
 }
 
+.download-item.completed .progress-fill {
+   background: #28e96a;
+}
+
 .download-item.error {
    border-left-color: #ff4444;
+}
+
+.download-item.error .progress-fill {
+   background: #ff4444;
 }
 
 .download-name {
@@ -257,6 +283,16 @@ circle.selected {
 
 .download-item.error .progress-fill {
    background: #ff4444;
+}
+
+@keyframes progress-shimmer {
+   0% {
+      background-position: -200px 0;
+   }
+
+   100% {
+      background-position: 200px 0;
+   }
 }
 
 #rightSidePanel {

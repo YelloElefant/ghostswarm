@@ -831,6 +831,23 @@ function getDownloadStatus() {
       const prog = downloader.downloadProgress;
       const remainingPieces = prog.total - prog.completed;
 
+      // Better status determination
+      let downloadStatus;
+      if (remainingPieces === 0) {
+         downloadStatus = 'completed';
+      } else if (prog.failedPieces.size > 0 && prog.pendingPieces.size === 0 && downloader.requestQueue.length === 0) {
+         downloadStatus = 'failed';
+      } else if (prog.pendingPieces.size > 0 || downloader.requestQueue.length > 0) {
+         // Actually downloading if we have pending pieces or queued requests
+         downloadStatus = 'downloading';
+      } else if (downloader.activePeerConnections.size === 0) {
+         // No peers connected
+         downloadStatus = 'no_peers';
+      } else {
+         // Connected to peers but no active requests - might be waiting
+         downloadStatus = 'stalled';
+      }
+
       status[infoHash] = {
          name: prog.torrentName,
          completed: prog.completed,
@@ -841,9 +858,7 @@ function getDownloadStatus() {
          remaining: remainingPieces,
          peers: downloader.activePeerConnections.size,
          queue: downloader.requestQueue.length,
-         status: remainingPieces === 0 ? 'complete' :
-            prog.failedPieces.size > 0 ? 'failed' :
-               prog.pendingPieces.size > 0 ? 'downloading' : 'stalled'
+         status: downloadStatus
       };
    }
    return status;
