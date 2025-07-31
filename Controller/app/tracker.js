@@ -3,19 +3,19 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const app = express();
-const config = require('./config'); // Assuming you have a config file for constants
+const config = require('./config');
 const { redis } = require('./redis/redis');
 const WebSocket = require('ws');
 
-const UPLOADS_DIR = config.UPLOADS_DIR; // where the original uploaded files live
-const TORRENT_DIR = config.TORRENTS_DIR; // where the torrent metadata files are stored
-const PORT = process.env.TRACKER_PORT || 5001;
+const UPLOADS_DIR = config.UPLOADS_DIR;
+const TORRENT_DIR = config.TORRENTS_DIR;
+const HTTP_PORT = process.env.TRACKER_PORT || 5001; // HTTP API
+const WS_PORT = process.env.TRACKER_WS_PORT || 5002; // WebSocket
 
+// HTTP Routes
 app.get("/swarm/:infoHash", async (req, res) => {
    const infoHash = req.params.infoHash;
 
-
-   // get swarm map from redis
    if (!redis) {
       return res.status(500).json({ error: "Server not properly initialized" });
    }
@@ -30,41 +30,32 @@ app.get("/swarm/:infoHash", async (req, res) => {
       console.error(`❌ Error fetching swarm for ${infoHash}:`, error);
       res.status(500).json({ error: "Failed to fetch swarm data" });
    }
-
 });
 
-
-
-// GET takes a botID and returns the ip of that bot
 app.get('/bot/:botId', async (req, res) => {
    const botId = req.params.botId;
    if (!redis) {
       return res.status(500).json({ error: "Server not properly initialized" });
    }
 
-   await redis.get(`status:${botId}`, (err, data) => {
-      if (err) {
-         console.error(`❌ Error fetching status for ${botId}:`, err);
-         return res.status(500).json({ error: "Failed to fetch bot status" });
-      }
+   try {
+      const data = await redis.get(`status:${botId}`);
       if (!data) {
          return res.status(404).json({ error: "Bot not found" });
       }
-      try {
-         const status = JSON.parse(data);
-         res.json({
-            id: botId,
-            ip: status.ip || 'unknown',
-            alive: status.status === "alive",
-            lastSeen: status.lastSeen ? new Date(status.lastSeen).toLocaleString() : 'unknown',
-         });
-      } catch (parseError) {
-         console.error(`❌ Error parsing status for ${botId}:`, parseError);
-         res.status(500).json({ error: "Invalid bot status format" });
-      }
-   });
-});
 
+      const status = JSON.parse(data);
+      res.json({
+         id: botId,
+         ip: status.ip || 'unknown',
+         alive: status.status === "alive",
+         lastSeen: status.lastSeen ? new Date(status.lastSeen).toLocaleString() : 'unknown',
+      });
+   } catch (parseError) {
+      console.error(`❌ Error parsing status for ${botId}:`, parseError);
+      res.status(500).json({ error: "Invalid bot status format" });
+   }
+});
 
 async function getSwarmMap(redis, infoHash) {
    const entries = await redis.hgetall(`swarm:${infoHash}`);
@@ -75,13 +66,10 @@ async function getSwarmMap(redis, infoHash) {
    return swarm;
 }
 
+// WebSocket Server
+const wss = new WebSocket.Server({ port: WS_PORT });
 
-
-const TRACKER_PORT = 5001;
-
-const wss = new WebSocket.Server({ port: TRACKER_PORT });
-
-console.log(`🎯 Tracker server running on port ${TRACKER_PORT}`);
+console.log(`🎯 Tracker WebSocket server running on port ${WS_PORT}`);
 
 wss.on('connection', (ws, req) => {
    console.log(`🔗 Tracker client connected from ${req.socket.remoteAddress}`);
@@ -139,13 +127,27 @@ async function handleGetSwarm(ws, infoHash) {
          });
       }
 
+      // Also include IP addresses for peers
+      const peersWithIPs = await Promise.all(peers.map(async (peer) => {
+         try {
+            const statusData = await redis.get(`status:${peer.botId}`);
+            if (statusData) {
+               const status = JSON.parse(statusData);
+               peer.ip = status.ip || null;
+            }
+         } catch (err) {
+            console.warn(`⚠️ Could not get IP for peer ${peer.botId}:`, err.message);
+         }
+         return peer;
+      }));
+
       ws.send(JSON.stringify({
          type: 'swarm_response',
          infoHash: infoHash,
-         peers: peers
+         peers: peersWithIPs
       }));
 
-      console.log(`📊 Sent swarm info for ${infoHash}: ${peers.length} peers`);
+      console.log(`📊 Sent swarm info for ${infoHash}: ${peersWithIPs.length} peers`);
 
    } catch (err) {
       console.error(`❌ Failed to get swarm info:`, err.message);
@@ -190,8 +192,9 @@ async function handleAnnouncePiece(message) {
    }
 }
 
-app.listen(PORT, () => {
-   console.log(`Tracker service listening on port ${PORT}`);
+// Start HTTP server
+app.listen(HTTP_PORT, () => {
+   console.log(`🌐 Tracker HTTP API listening on port ${HTTP_PORT}`);
 });
 
-module.exports = { wss };
+module.exports = { wss, app };

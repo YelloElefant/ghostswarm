@@ -210,7 +210,8 @@ class TorrentDownloader {
 
    async connectToTracker() {
       return new Promise((resolve, reject) => {
-         const trackerUrl = `ws://${DOWNLOAD_CONFIG.CONTROLLER_IP}:5001`;
+         // Use port 5002 for WebSocket if using Option 1, or 5001 if using Option 2
+         const trackerUrl = `ws://${DOWNLOAD_CONFIG.CONTROLLER_IP}:5002`; // or 5001 for Option 2
          console.log(`🔗 Connecting to tracker at ${trackerUrl}`);
 
          const trackerWs = new WebSocket(trackerUrl);
