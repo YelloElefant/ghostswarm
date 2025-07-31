@@ -56,7 +56,7 @@ function getTotalCompletedTorrents() {
       }
 
       const files = fs.readdirSync(torrentsDir);
-      const torrentFiles = files.filter(file => file.endsWith('.torrent') || file.endsWith('.json'));
+      const torrentFiles = files.filter(file => file.endsWith(config.PATHS?.TORRENT_EXTENSION || '.ghostswarm') && !file.startsWith('.'));
 
       return torrentFiles.length;
    } catch (err) {
