@@ -1,4 +1,5 @@
 let nodes = [];
+let selectedBot = null;
 
 async function drawSwarmGraph() {
    const res = await fetch("api/bots/");
@@ -6,11 +7,12 @@ async function drawSwarmGraph() {
 
    console.log(bots);
 
-
    const tempNodes = bots.map(bot => ({
       id: bot.id,
       label: `${bot.id}\n${bot.ip}`,
       alive: bot.alive,
+      downloading: bot.stats.activeDownloads > 0,
+      data: bot // Store full bot data
    }));
 
    console.log("Temp nodes:", tempNodes);
@@ -18,7 +20,10 @@ async function drawSwarmGraph() {
    function arraysEqualByProps(a, b) {
       if (a.length !== b.length) return false;
       for (let i = 0; i < a.length; i++) {
-         if (a[i].id !== b[i].id || a[i].label !== b[i].label || a[i].alive !== b[i].alive) {
+         if (a[i].id !== b[i].id ||
+            a[i].label !== b[i].label ||
+            a[i].alive !== b[i].alive ||
+            a[i].downloading !== b[i].downloading) {
             return false;
          }
       }
@@ -86,7 +91,11 @@ async function drawSwarmGraph() {
 
    node.append("circle")
       .attr("r", 16)
-      .attr("class", d => d.alive ? "alive" : "dead");
+      .attr("class", d => {
+         if (!d.alive) return "dead";
+         if (d.downloading) return "downloading";
+         return "alive";
+      });
 
    node.append("text")
       .text(d => d.id)
@@ -119,59 +128,138 @@ async function drawSwarmGraph() {
       d.fy = null;
    }
 
-   node.select("circle").attr("class", d =>
-      d.alive ? "alive" : "dead"
-   );
-
    node.filter(d => d.alive).on("click", (event, d) => {
       d3.selectAll("circle").classed("selected", false);
       d3.select(event.currentTarget).select("circle").classed("selected", true);
 
+      selectedBot = d.data;
+      showBotDetails(d.data);
       document.getElementById("sidePanel").classList.add("open");
-      document.getElementById("botId").value = d.id;
    });
 }
 
-drawSwarmGraph();
-setInterval(drawSwarmGraph, 10000); // refresh every 10s
+function showBotDetails(bot) {
+   const sidePanel = document.getElementById("sidePanel");
 
+   // Calculate progress percentages
+   const totalProgress = bot.stats.totalPieces > 0
+      ? Math.round((bot.stats.downloadedPieces / bot.stats.totalPieces) * 100)
+      : 0;
 
+   sidePanel.innerHTML = `
+      <button class="close-panel" onclick="closeSidePanel()">&times;</button>
+      
+      <h2>Bot Details</h2>
+      
+      <div class="bot-info ${!bot.alive ? 'dead' : (bot.stats.activeDownloads > 0 ? 'downloading' : '')}">
+         <div><strong>ID:</strong> ${bot.id}</div>
+         <div><strong>IP:</strong> ${bot.ip}</div>
+         <div><strong>Status:</strong> ${bot.alive ? '🟢 Online' : '🔴 Offline'}</div>
+         <div><strong>Last Seen:</strong> ${bot.lastSeen}</div>
+      </div>
 
+      <h3>Download Statistics</h3>
+      <div class="status-grid">
+         <div class="status-item">
+            <span class="label">Total Downloads</span>
+            <span class="value">${bot.stats.totalDownloads}</span>
+         </div>
+         <div class="status-item">
+            <span class="label">Active</span>
+            <span class="value">${bot.stats.activeDownloads}</span>
+         </div>
+         <div class="status-item">
+            <span class="label">Completed</span>
+            <span class="value">${bot.stats.completedDownloads}</span>
+         </div>
+         <div class="status-item">
+            <span class="label">Progress</span>
+            <span class="value">${totalProgress}%</span>
+         </div>
+      </div>
 
+      ${Object.keys(bot.downloads).length > 0 ? `
+      <h3>Active Downloads</h3>
+      <div class="download-list">
+         ${Object.entries(bot.downloads).map(([infoHash, download]) => {
+      const progress = download.totalPieces > 0
+         ? Math.round((download.downloadedPieces / download.totalPieces) * 100)
+         : 0;
 
+      return `
+               <div class="download-item ${download.status}">
+                  <div class="download-name">${download.name || infoHash.slice(0, 8)}...</div>
+                  <div class="progress-bar">
+                     <div class="progress-fill" style="width: ${progress}%"></div>
+                  </div>
+                  <div class="download-progress">
+                     <span>${download.downloadedPieces}/${download.totalPieces} pieces</span>
+                     <span>${download.status}</span>
+                  </div>
+                  ${download.peers ? `<div style="font-size: 11px; color: #aaa;">Peers: ${download.peers}</div>` : ''}
+               </div>
+            `;
+   }).join('')}
+      </div>
+      ` : '<p style="color: #aaa;">No active downloads</p>'}
 
-// Handle form submit
-document
-   .getElementById("cmdForm")
-   .addEventListener("submit", async (e) => {
-      e.preventDefault();
+      <h3>Send Command</h3>
+      <form id="cmdForm">
+         <input type="hidden" id="botId" value="${bot.id}" />
+         <label>Command:</label>
+         <input type="text" id="cmdInput" placeholder="e.g. uptime" required />
+         <button type="submit">Send</button>
+         <pre id="cmdOutput"></pre>
+      </form>
+   `;
 
-      const botId = document.getElementById("botId").value;
-      const command = document.getElementById("cmdInput").value;
-      const outputBox = document.getElementById("cmdOutput");
-      outputBox.textContent = "⏳ Waiting for response...";
-      const topic = `ghostswarm/${botId}/command`;
-      const res = await fetch(`/api/bots/${botId}/command`, {
-         method: "POST",
-         headers: { "Content-Type": "application/json" },
-         body: JSON.stringify({
-            topic: topic,
-            type: "shell",
-            command: command,
-            botId: botId,
-         }),
-      });
+   // Re-attach form handler
+   document.getElementById("cmdForm").addEventListener("submit", handleCommandSubmit);
+}
 
-      const result = await res.json();
-      console.log("Command result:", result);
+function closeSidePanel() {
+   document.getElementById("sidePanel").classList.remove("open");
+   d3.selectAll("circle").classed("selected", false);
+   selectedBot = null;
+}
 
-      if (res.ok) {
-         outputBox.textContent =
-            `✅ ${botId} responded:\n\n` + result.output;
-      } else {
-         outputBox.textContent = `❌ Error: ${result.error || "no response"
-            }`;
-      }
+async function handleCommandSubmit(e) {
+   e.preventDefault();
+
+   const botId = document.getElementById("botId").value;
+   const command = document.getElementById("cmdInput").value;
+   const outputBox = document.getElementById("cmdOutput");
+
+   outputBox.textContent = "⏳ Waiting for response...";
+
+   const res = await fetch(`/api/bots/${botId}/command`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+         type: "shell",
+         command: command,
+         botId: botId,
+      }),
    });
 
-// On load
+   const result = await res.json();
+   console.log("Command result:", result);
+
+   if (res.ok) {
+      outputBox.textContent = `✅ ${botId} responded:\n\n` + result.output;
+   } else {
+      outputBox.textContent = `❌ Error: ${result.error || "no response"}`;
+   }
+}
+
+// Close panel when clicking outside
+document.addEventListener('click', (e) => {
+   const sidePanel = document.getElementById("sidePanel");
+   if (!sidePanel.contains(e.target) && !e.target.closest('.node')) {
+      closeSidePanel();
+   }
+});
+
+// Initial draw and refresh
+drawSwarmGraph();
+setInterval(drawSwarmGraph, 5000); // refresh every 5s

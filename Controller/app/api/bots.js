@@ -17,7 +17,76 @@ router.get('/', async (req, res) => {
          return res.status(500).json({ error: 'Server not properly initialized' });
       }
 
-      const bots = await getBots(redis);
+      // Get all bot status keys
+      const keys = await redis.keys('status:*');
+      const bots = [];
+
+      for (const key of keys) {
+         try {
+            const statusData = await redis.get(key);
+            if (statusData) {
+               const status = JSON.parse(statusData);
+               const botId = key.replace('status:', '');
+
+               // Calculate if bot is alive (last seen within 2 minutes)
+               const lastSeen = status.lastSeen || status.time || 0;
+               const isAlive = (Date.now() - lastSeen) < 120000; // 2 minutes
+
+               bots.push({
+                  id: botId,
+                  ip: status.ip || 'unknown',
+                  alive: isAlive,
+                  lastSeen: lastSeen ? new Date(lastSeen).toLocaleString() : 'unknown',
+                  status: status.status || 'unknown',
+                  // Include all download information
+                  downloads: status.downloads || {},
+                  // Add summary stats
+                  stats: {
+                     totalDownloads: Object.keys(status.downloads || {}).length,
+                     activeDownloads: Object.values(status.downloads || {}).filter(d => d.status === 'downloading').length,
+                     completedDownloads: Object.values(status.downloads || {}).filter(d => d.status === 'completed').length,
+                     totalPieces: Object.values(status.downloads || {}).reduce((sum, d) => sum + (d.totalPieces || 0), 0),
+                     downloadedPieces: Object.values(status.downloads || {}).reduce((sum, d) => sum + (d.downloadedPieces || 0), 0)
+                  },
+                  // Additional metadata
+                  metadata: {
+                     uptime: status.uptime || 0,
+                     version: status.version || 'unknown',
+                     platform: status.platform || 'unknown'
+                  }
+               });
+            }
+         } catch (parseError) {
+            console.warn(`⚠️ Failed to parse status for ${key}:`, parseError.message);
+            const botId = key.replace('status:', '');
+            bots.push({
+               id: botId,
+               ip: 'unknown',
+               alive: false,
+               lastSeen: 'parse error',
+               status: 'error',
+               downloads: {},
+               stats: {
+                  totalDownloads: 0,
+                  activeDownloads: 0,
+                  completedDownloads: 0,
+                  totalPieces: 0,
+                  downloadedPieces: 0
+               },
+               metadata: {
+                  uptime: 0,
+                  version: 'unknown',
+                  platform: 'unknown'
+               }
+            });
+         }
+      }
+
+      // Sort by alive status, then by ID
+      bots.sort((a, b) => {
+         if (a.alive !== b.alive) return b.alive - a.alive;
+         return a.id.localeCompare(b.id);
+      });
 
       res.json(bots);
    } catch (error) {

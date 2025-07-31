@@ -28,7 +28,7 @@ async function getBots(redis) {
                      console.warn(`⚠️ Failed to get status for ${botId}:`, e.message);
                   }
 
-                  console.log(`Bot ${botId} status:`, status);
+                  // console.log(`Bot ${botId} status:`, status);
 
                   return {
                      id: botId,

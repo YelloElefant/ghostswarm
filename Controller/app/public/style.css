@@ -6,6 +6,9 @@
 body {
    font-family: sans-serif;
    padding: 1rem;
+   margin: 0;
+   background: #111;
+   overflow: hidden;
 }
 
 input,
@@ -13,17 +16,9 @@ button {
    margin: 0.5rem;
 }
 
-body {
-   margin: 0;
-   background: #111;
-   overflow: hidden;
-   font-family: sans-serif;
-}
-
 #graphWrapper {
    width: 100%;
    height: 100vh;
-   /* or set px if you prefer */
 }
 
 #swarmGraph {
@@ -59,6 +54,11 @@ body {
    fill: #444;
 }
 
+.downloading {
+   fill: #ffa500;
+   animation: download-pulse 1.5s infinite;
+}
+
 @keyframes pulse {
    0% {
       r: 8;
@@ -73,6 +73,20 @@ body {
    }
 }
 
+@keyframes download-pulse {
+   0% {
+      fill: #ffa500;
+   }
+
+   50% {
+      fill: #ff6b00;
+   }
+
+   100% {
+      fill: #ffa500;
+   }
+}
+
 circle.selected {
    stroke: #fffb00;
    stroke-width: 3px;
@@ -81,9 +95,8 @@ circle.selected {
 #sidePanel {
    position: fixed;
    top: 0;
-   right: -400px;
-   /* hidden by default */
-   width: 400px;
+   right: -500px;
+   width: 500px;
    height: 100%;
    background: #1a1a1a;
    color: #fff;
@@ -96,12 +109,18 @@ circle.selected {
 
 #sidePanel.open {
    right: 0;
-   /* slide in */
 }
 
+#sidePanel h2 {
+   margin-top: 0;
+   color: #28e96a;
+}
 
-
-
+#sidePanel h3 {
+   color: #ffa500;
+   margin-top: 20px;
+   margin-bottom: 10px;
+}
 
 #sidePanel label {
    display: block;
@@ -126,6 +145,11 @@ circle.selected {
    color: #000;
    font-weight: bold;
    cursor: pointer;
+   border-radius: 4px;
+}
+
+#sidePanel button:hover {
+   background: #20b855;
 }
 
 #sidePanel pre {
@@ -134,27 +158,121 @@ circle.selected {
    background: #222;
    padding: 10px;
    white-space: pre-wrap;
+   border-radius: 4px;
+}
+
+.bot-info {
+   background: #2a2a2a;
+   padding: 15px;
+   margin: 10px 0;
+   border-radius: 8px;
+   border-left: 4px solid #28e96a;
+}
+
+.bot-info.dead {
+   border-left-color: #444;
+}
+
+.bot-info.downloading {
+   border-left-color: #ffa500;
+}
+
+.status-grid {
+   display: grid;
+   grid-template-columns: 1fr 1fr;
+   gap: 10px;
+   margin: 10px 0;
+}
+
+.status-item {
+   background: #333;
+   padding: 8px;
+   border-radius: 4px;
+   text-align: center;
+}
+
+.status-item .label {
+   font-size: 11px;
+   color: #aaa;
+   display: block;
+}
+
+.status-item .value {
+   font-size: 16px;
+   font-weight: bold;
+   color: #28e96a;
+}
+
+.download-list {
+   max-height: 300px;
+   overflow-y: auto;
+}
+
+.download-item {
+   background: #333;
+   padding: 10px;
+   margin: 8px 0;
+   border-radius: 4px;
+   border-left: 3px solid #ffa500;
+}
+
+.download-item.completed {
+   border-left-color: #28e96a;
+}
+
+.download-item.error {
+   border-left-color: #ff4444;
+}
+
+.download-name {
+   font-weight: bold;
+   margin-bottom: 5px;
+}
+
+.download-progress {
+   display: flex;
+   justify-content: space-between;
+   font-size: 12px;
+   color: #aaa;
+}
+
+.progress-bar {
+   width: 100%;
+   height: 6px;
+   background: #555;
+   border-radius: 3px;
+   margin: 5px 0;
+   overflow: hidden;
+}
+
+.progress-fill {
+   height: 100%;
+   background: linear-gradient(90deg, #28e96a, #20b855);
+   transition: width 0.3s ease;
+}
+
+.download-item.completed .progress-fill {
+   background: #28e96a;
+}
+
+.download-item.error .progress-fill {
+   background: #ff4444;
 }
 
 #rightSidePanel {
    position: fixed;
    top: 0;
    left: 0px;
-   /* hidden by default */
    width: 100px;
    height: 100%;
    background: #1a1a1a;
    color: #fff;
    padding: 20px;
-   box-shadow: -2px 0 8px rgba(0, 0, 0, 0.4);
-   transition: right 0.3s ease;
+   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.4);
    z-index: 1000;
    overflow-y: auto;
-
    display: flex;
    flex-direction: column;
-
-
 }
 
 #rightSidePanel a {
@@ -163,7 +281,7 @@ circle.selected {
    align-items: center;
    height: 60px;
    border: #333 1px solid;
-   border-radius: 500px;
+   border-radius: 50%;
    margin-bottom: 10px;
    text-decoration: none;
    transition: background 0.3s ease;
@@ -178,4 +296,21 @@ a icon {
    text-decoration: none;
    font-size: 24px;
    text-align: center;
+}
+
+.close-panel {
+   position: absolute;
+   top: 10px;
+   right: 15px;
+   background: none;
+   border: none;
+   color: #aaa;
+   font-size: 24px;
+   cursor: pointer;
+   padding: 0;
+   margin: 0;
+}
+
+.close-panel:hover {
+   color: #fff;
 }
