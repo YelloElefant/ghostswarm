@@ -302,22 +302,42 @@ function updateDownloadStats(bot) {
 
    container.innerHTML = `
       <div class="status-item">
-         <span class="label">Total Downloads</span>
-         <span class="value">${bot.stats.totalDownloads}</span>
+         <span class="label">Total Torrents</span>
+         <span class="value">${bot.stats.totalTorrents || 0}</span>
       </div>
       <div class="status-item">
-         <span class="label">Active</span>
+         <span class="label">Total Files</span>
+         <span class="value">${bot.stats.totalFiles || 0}</span>
+      </div>
+      <div class="status-item">
+         <span class="label">Active Downloads</span>
          <span class="value">${bot.stats.activeDownloads}</span>
-      </div>
-      <div class="status-item">
-         <span class="label">Completed</span>
-         <span class="value">${bot.stats.completedDownloads}</span>
       </div>
       <div class="status-item">
          <span class="label">Progress</span>
          <span class="value">${totalProgress}%</span>
       </div>
+      <div class="status-item">
+         <span class="label">Uptime</span>
+         <span class="value">${formatUptime(bot.stats.uptime || 0)}</span>
+      </div>
+      <div class="status-item">
+         <span class="label">Memory</span>
+         <span class="value">${bot.metadata.memory ? `${bot.metadata.memory.used}MB` : 'N/A'}</span>
+      </div>
    `;
+}
+
+// Helper function to format uptime
+function formatUptime(seconds) {
+   const hours = Math.floor(seconds / 3600);
+   const minutes = Math.floor((seconds % 3600) / 60);
+   
+   if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+   } else {
+      return `${minutes}m`;
+   }
 }
 
 function updateDownloadList(bot) {

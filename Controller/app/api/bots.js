@@ -43,16 +43,21 @@ router.get('/', async (req, res) => {
                   // Add summary stats
                   stats: {
                      totalDownloads: Object.keys(status.downloads || {}).length,
-                     activeDownloads: Object.values(status.downloads || {}).filter(d => d.status === 'downloading').length,
+                     activeDownloads: Object.values(status.downloads || {}).filter(d => d.status === 'downloading' || d.status === 'stalled').length,
                      completedDownloads: Object.values(status.downloads || {}).filter(d => d.status === 'completed').length,
-                     totalPieces: Object.values(status.downloads || {}).reduce((sum, d) => sum + (d.totalPieces || 0), 0),
-                     downloadedPieces: Object.values(status.downloads || {}).reduce((sum, d) => sum + (d.downloadedPieces || 0), 0)
+                     totalPieces: Object.values(status.downloads || {}).reduce((sum, d) => sum + (d.total || 0), 0),
+                     downloadedPieces: Object.values(status.downloads || {}).reduce((sum, d) => sum + (d.completed || 0), 0),
+                     // Use bot's own stats if available, fallback to calculations
+                     totalTorrents: status.stats?.totalTorrents || 0,
+                     totalFiles: status.stats?.totalFiles || 0,
+                     uptime: status.stats?.uptime || 0
                   },
                   // Additional metadata
                   metadata: {
-                     uptime: status.uptime || 0,
+                     uptime: status.stats?.uptime || status.uptime || 0,
                      version: status.version || 'unknown',
-                     platform: status.platform || 'unknown'
+                     platform: status.system?.platform || status.platform || 'unknown',
+                     memory: status.system?.memory || null
                   }
                });
             }

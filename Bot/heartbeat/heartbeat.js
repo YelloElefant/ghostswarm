@@ -2,6 +2,8 @@ const config = require("../config.js");
 const BOTID = config.mqtt.botId;
 const { getDownloadStatus } = require("../torrent/download");
 const os = require('os');
+const fs = require('fs');
+const path = require('path');
 
 function getTailscaleIP() {
    try {
@@ -43,21 +45,94 @@ function getHostIP() {
    return null;
 }
 
+function getTotalCompletedTorrents() {
+   try {
+      // Count .torrent files in the torrents directory
+      const torrentsDir = config.PATHS?.TORRENTS_DIR || './data/torrents';
+
+      if (!fs.existsSync(torrentsDir)) {
+         console.warn(`⚠️ Torrents directory not found: ${torrentsDir}`);
+         return 0;
+      }
+
+      const files = fs.readdirSync(torrentsDir);
+      const torrentFiles = files.filter(file => file.endsWith('.torrent') || file.endsWith('.json'));
+
+      return torrentFiles.length;
+   } catch (err) {
+      console.warn(`⚠️ Could not count torrents: ${err.message}`);
+      return 0;
+   }
+}
+
+function getCompletedFiles() {
+   try {
+      // Count actual files in the uploads/completed directory
+      const uploadsDir = config.PATHS?.UPLOADS_DIR || './data/uploads';
+
+      if (!fs.existsSync(uploadsDir)) {
+         console.warn(`⚠️ Uploads directory not found: ${uploadsDir}`);
+         return 0;
+      }
+
+      const files = fs.readdirSync(uploadsDir);
+      // Filter out hidden files and directories
+      const actualFiles = files.filter(file => {
+         const filePath = path.join(uploadsDir, file);
+         try {
+            return fs.statSync(filePath).isFile() && !file.startsWith('.');
+         } catch (err) {
+            return false;
+         }
+      });
+
+      return actualFiles.length;
+   } catch (err) {
+      console.warn(`⚠️ Could not count completed files: ${err.message}`);
+      return 0;
+   }
+}
+
 function startHeartbeat(mqtt) {
    console.log("💓 Heartbeat started");
 
    setInterval(() => {
       const hostIP = getHostIP();
+      const downloads = getDownloadStatus();
+      const totalTorrents = getTotalCompletedTorrents();
+      const totalFiles = getCompletedFiles();
+
+      // Calculate download statistics
+      const downloadValues = Object.values(downloads);
+      const activeDownloads = downloadValues.filter(d => d.status === 'downloading' || d.status === 'stalled').length;
+      const completedDownloads = downloadValues.filter(d => d.status === 'completed').length;
 
       const status = {
          status: "alive",
          time: Date.now(),
          ip: hostIP,
-         downloads: getDownloadStatus(),
-         botId: BOTID
+         downloads: downloads,
+         botId: BOTID,
+         // Enhanced statistics
+         stats: {
+            totalTorrents: totalTorrents,
+            totalFiles: totalFiles,
+            activeDownloads: activeDownloads,
+            completedDownloads: completedDownloads,
+            uptime: process.uptime()
+         },
+         // System info
+         system: {
+            platform: os.platform(),
+            arch: os.arch(),
+            memory: {
+               used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+               total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
+            }
+         }
       };
 
-      console.log(`💓 Heartbeat: IP=${hostIP}, Downloads=${Object.keys(status.downloads).length}`);
+      console.log(`💓 Heartbeat: IP=${hostIP}, Downloads=${Object.keys(downloads).length}, Torrents=${totalTorrents}, Files=${totalFiles}`);
       mqtt.publish(`${config.mqtt.topicPrefix}/status/${BOTID}`, JSON.stringify(status));
    }, config.heartbeatIntervalMs);
 }
