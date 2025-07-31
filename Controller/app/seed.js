@@ -6,8 +6,8 @@ const path = require('path');
 const fs = require('fs');
 const config = require('./config');
 
-const UPLOADS_DIR = config.PATHS.UPLOADS_DIR;
-const TORRENT_DIR = config.PATHS.TORRENTS_DIR;
+const UPLOADS_DIR = config.UPLOADS_DIR;
+const TORRENT_DIR = config.TORRENTS_DIR;
 const PORT = process.env.SEED_PORT || 5000;
 
 const app = express();
