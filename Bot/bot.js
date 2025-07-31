@@ -5,8 +5,8 @@ const MQTT_BROKER = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
 
 const fs = require("fs");
 const path = require("path");
-const { download } = require("./torrent/download"); // Ensure you have this package installed
-const { deleteTorrent } = require("./torrent/delete"); // Ensure you have this package installed
+const { download, handleTorrentDownload, getDownloadStatus } = require("./torrent/download");
+const { deleteTorrent } = require("./torrent/delete");
 const config = require("./config");
 const { startMQTT } = require("./mqtt/client");
 const { startHeartbeat } = require("./heartbeat/heartbeat");
@@ -41,7 +41,7 @@ mqttClient.on('message', (topic, message) => {
          const infoHash = topic.split('/')[2];
          const payload = JSON.parse(message.toString());
          console.log(`📥 [${botId}] received torrent download request for ${infoHash}`, payload);
-         handleTorrentDownload(infoHash, payload);
+         handleTorrentDownloadRequest(infoHash, payload);
       }
 
       else if (topic.startsWith('ghostswarm/torrent/have/')) {
@@ -57,7 +57,7 @@ mqttClient.on('message', (topic, message) => {
          const infoHash = topic.split('/')[3];
          const payload = JSON.parse(message.toString());
          console.log(`📥 [${botId}] need to download torrent ${infoHash}`);
-         handleTorrentDownload(infoHash, payload);
+         handleTorrentDownloadRequest(infoHash, payload);
       }
 
       else if (topic.startsWith('ghostswarm/torrent/delete/')) {
@@ -109,42 +109,84 @@ function updateSwarmMap(infoHash, pieceIndex, who) {
    // console.log(`🧠 Swarm updated: piece ${pieceIndex} held by ${who}`);
 }
 
-function handleTorrentDownload(infoHash, payload) {
-   // save payload to file 
+function handleTorrentDownloadRequest(infoHash, payload) {
    const torrentPath = config.PATHS.TORRENTS_DIR + `/${infoHash}${config.PATHS.TORRENT_EXTENSION}`;
-   const outDir = config.PATHS.PIECES_DIR + `/${infoHash}`;
-   const uploadsDir = config.PATHS.UPLOADS_DIR + `/${payload.name}`;
-   if (fs.existsSync(torrentPath)) {
-      console.log(`📂 [${botId}] torrent ${infoHash} already exists in ${torrentPath}`);
+   const uploadsFile = config.PATHS.UPLOADS_DIR + `/${payload.name}`;
+
+   // Check if we already have the complete file
+   if (fs.existsSync(uploadsFile)) {
+      console.log(`✅ [${botId}] torrent ${infoHash} already downloaded: ${payload.name}`);
+
+      // Announce that we have all pieces
+      announceCompleteTorrent(infoHash, payload);
       return;
    }
 
-   fs.mkdirSync(path.dirname(torrentPath), { recursive: true }); // ensure directory exists
-   fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
-   console.log(`📂 [${botId}] saved torrent to ${torrentPath}`);
+   // Check if torrent is already being downloaded
+   const downloadStatus = getDownloadStatus();
+   if (downloadStatus[infoHash]) {
+      console.log(`📥 [${botId}] torrent ${infoHash} already downloading (${downloadStatus[infoHash].percent}% complete)`);
+      return;
+   }
 
-   // check if torrent already exists and is downloaded
-   // Download the torrent
-
-
-   download(payload, infoHash, mqttClient)
-      .then(() => {
-         console.log(`📥 [${botId}] started downloading torrent ${infoHash}`);
-      })
-      .catch(err => {
-         console.error(`❌ [${botId}] failed to download torrent ${infoHash}:`, err);
-         // Send error response
-         const statusTopic = `ghostswarm/${botId}/status`;
-         mqttClient.publish(statusTopic, JSON.stringify({
-            status: "error",
-            error: err.message,
-            time: Date.now()
-         }));
+   // Save torrent file if it doesn't exist
+   if (!fs.existsSync(torrentPath)) {
+      try {
+         fs.mkdirSync(path.dirname(torrentPath), { recursive: true });
+         fs.writeFileSync(torrentPath, JSON.stringify(payload, null, 2));
+         console.log(`📂 [${botId}] saved torrent to ${torrentPath}`);
+      } catch (err) {
+         console.error(`❌ [${botId}] failed to save torrent ${infoHash}:`, err.message);
+         return;
       }
-      );
+   }
 
+   // Start the download using the new TorrentDownloader class
+   console.log(`🚀 [${botId}] starting download for torrent ${infoHash}: ${payload.name}`);
+
+   try {
+      handleTorrentDownload(infoHash, payload);
+
+      // Send status update
+      const statusTopic = `ghostswarm/${botId}/status`;
+      mqttClient.publish(statusTopic, JSON.stringify({
+         status: "downloading",
+         infoHash: infoHash,
+         torrentName: payload.name,
+         time: Date.now()
+      }));
+
+      console.log(`📥 [${botId}] started downloading torrent ${infoHash}`);
+
+   } catch (err) {
+      console.error(`❌ [${botId}] failed to start download for torrent ${infoHash}:`, err.message);
+
+      // Send error response
+      const statusTopic = `ghostswarm/${botId}/status`;
+      mqttClient.publish(statusTopic, JSON.stringify({
+         status: "error",
+         error: err.message,
+         infoHash: infoHash,
+         time: Date.now()
+      }));
+   }
 }
 
+function announceCompleteTorrent(infoHash, payload) {
+   // Announce that we have all pieces to the swarm
+   for (let i = 0; i < payload.pieces.length; i++) {
+      updateSwarmMap(infoHash, i, botId);
+
+      // Also announce via MQTT
+      const topic = `ghostswarm/torrent/have/${botId}`;
+      mqttClient.publish(topic, JSON.stringify({
+         infoHash: infoHash,
+         pieceIndex: i
+      }), { qos: 1 });
+   }
+
+   console.log(`📢 [${botId}] announced complete torrent ${infoHash} to swarm`);
+}
 
 function checkForTorrents() {
    mqttClient.publish(`ghostswarm/${botId}/check/torrents`, JSON.stringify({
@@ -160,121 +202,169 @@ function hashBuffer(buf) {
    return crypto.createHash('sha1').update(buf).digest('hex');
 }
 
-function checkTorrentIntegrity(botId) {
+function checkTorrentIntegrity() {
    const torrentDir = config.PATHS.TORRENTS_DIR;
    const uploadDir = config.PATHS.UPLOADS_DIR;
    const stateDir = config.PATHS.STATE_DIR;
 
+   if (!fs.existsSync(torrentDir)) {
+      console.log(`📂 [${botId}] no torrent directory found, skipping integrity check`);
+      return;
+   }
+
    const torrentFiles = fs.readdirSync(torrentDir)
       .filter(file => file.endsWith(config.PATHS.TORRENT_EXTENSION));
 
+   if (torrentFiles.length === 0) {
+      console.log(`📂 [${botId}] no torrents found for integrity check`);
+      return;
+   }
+
+   console.log(`🔍 [${botId}] checking integrity of ${torrentFiles.length} torrents`);
+
    torrentFiles.forEach(file => {
       const filePath = path.join(torrentDir, file);
-      const torrentData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      const infoHash = file.replace(config.PATHS.TORRENT_EXTENSION, '');
-      const dataFilePath = path.join(uploadDir, torrentData.name);
 
-      // Case 1: If final .mkv file exists, do full streamed hash check
-      if (fs.existsSync(dataFilePath)) {
-         const pieceLength = torrentData.pieceLength;
-         const pieces = torrentData.pieces;
-         const corrupted = [];
+      try {
+         const torrentData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+         const infoHash = file.replace(config.PATHS.TORRENT_EXTENSION, '');
+         const dataFilePath = path.join(uploadDir, torrentData.name);
 
-         let pieceBuffer = Buffer.alloc(0);
-         let pieceIndex = 0;
+         // Case 1: If final file exists, do integrity check
+         if (fs.existsSync(dataFilePath)) {
+            console.log(`✅ [${botId}] found complete file: ${torrentData.name}`);
+            verifyCompleteFile(infoHash, torrentData, dataFilePath);
+         } else {
+            // Case 2: Final file missing, check for partial download
+            const statePath = path.join(stateDir, `${infoHash}.state.json`);
+            const piecePath = path.join(config.PATHS.PIECES_DIR, infoHash);
 
-         const stream = fs.createReadStream(dataFilePath, { highWaterMark: pieceLength });
-
-         stream.on('data', chunk => {
-            pieceBuffer = Buffer.concat([pieceBuffer, chunk]);
-
-            while (pieceBuffer.length >= pieceLength && pieceIndex < pieces.length) {
-               const piece = pieceBuffer.slice(0, pieceLength);
-               pieceBuffer = pieceBuffer.slice(pieceLength);
-
-               const expected = pieces[pieceIndex].hash;
-               const actual = hashBuffer(piece);
-
-               if (expected !== actual) {
-                  corrupted.push(pieceIndex);
-               }
-
-               pieceIndex++;
-            }
-         });
-
-         stream.on('end', () => {
-            if (pieceBuffer.length > 0 && pieceIndex < pieces.length) {
-               const expected = pieces[pieceIndex].hash;
-               const actual = hashBuffer(pieceBuffer);
-               if (expected !== actual) {
-                  corrupted.push(pieceIndex);
-               }
-            }
-
-            if (corrupted.length > 0) {
-               console.warn(`🛑 [${botId}] CORRUPTED pieces in ${torrentData.name}: ${corrupted.join(', ')}`);
-               invalidateTorrent(infoHash, torrentData);
+            if (fs.existsSync(statePath) || fs.existsSync(piecePath)) {
+               console.warn(`⚠️ [${botId}] incomplete download found for ${torrentData.name}, resuming...`);
+               resumeDownload(infoHash, torrentData);
             } else {
-               console.log(`✅ [${botId}] All ${pieces.length} pieces OK in ${torrentData.name}`);
-               clearState(infoHash);
+               console.warn(`❌ [${botId}] missing data file for torrent: ${torrentData.name}, restarting download`);
+               restartDownload(infoHash, torrentData);
             }
-         });
-
-         stream.on('error', err => {
-            console.error(`❌ [${botId}] Error reading file ${torrentData.name}:`, err.message);
-            invalidateTorrent(infoHash, torrentData);
-         });
-
-      } else {
-         // Case 2: Final file missing
-         const statePath = path.join(stateDir, `${infoHash}.state.json`);
-         const piecePath = path.join(config.PATHS.PIECES_DIR, infoHash);
-
-         if (fs.existsSync(statePath) && fs.existsSync(piecePath)) {
-            console.warn(`⚠️ [${botId}] Final file missing but .state.json and pieces exist — will resume ${torrentData.name}`);
-            download(torrentData, infoHash, mqttClient)
-               .then(() => console.log(`📥 [${botId}] resumed torrent ${infoHash}`))
-               .catch(err => {
-                  console.error(`❌ [${botId}] failed to resume torrent ${infoHash}:`, err);
-               });
-            return;
          }
-
-         console.warn(`❌ [${botId}] Missing data file for torrent: ${torrentData.name}`);
-         invalidateTorrent(infoHash, torrentData);
+      } catch (err) {
+         console.error(`❌ [${botId}] error checking torrent ${file}:`, err.message);
       }
    });
 }
 
+function verifyCompleteFile(infoHash, torrentData, dataFilePath) {
+   const pieceLength = torrentData.pieceLength;
+   const pieces = torrentData.pieces;
+   const corrupted = [];
+
+   let pieceBuffer = Buffer.alloc(0);
+   let pieceIndex = 0;
+   let bytesProcessed = 0;
+
+   const stream = fs.createReadStream(dataFilePath, { highWaterMark: pieceLength });
+
+   stream.on('data', chunk => {
+      pieceBuffer = Buffer.concat([pieceBuffer, chunk]);
+      bytesProcessed += chunk.length;
+
+      while (pieceBuffer.length >= pieceLength && pieceIndex < pieces.length) {
+         const piece = pieceBuffer.slice(0, pieceLength);
+         pieceBuffer = pieceBuffer.slice(pieceLength);
+
+         const expected = pieces[pieceIndex].hash;
+         const actual = hashBuffer(piece);
+
+         if (expected !== actual) {
+            corrupted.push(pieceIndex);
+         }
+
+         pieceIndex++;
+      }
+   });
+
+   stream.on('end', () => {
+      // Handle last piece (may be smaller)
+      if (pieceBuffer.length > 0 && pieceIndex < pieces.length) {
+         const expected = pieces[pieceIndex].hash;
+         const actual = hashBuffer(pieceBuffer);
+         if (expected !== actual) {
+            corrupted.push(pieceIndex);
+         }
+      }
+
+      if (corrupted.length > 0) {
+         console.warn(`🛑 [${botId}] CORRUPTED pieces in ${torrentData.name}: ${corrupted.join(', ')}`);
+         invalidateTorrent(infoHash, torrentData);
+      } else {
+         console.log(`✅ [${botId}] all ${pieces.length} pieces verified in ${torrentData.name}`);
+         clearState(infoHash);
+         announceCompleteTorrent(infoHash, torrentData);
+      }
+   });
+
+   stream.on('error', err => {
+      console.error(`❌ [${botId}] error reading file ${torrentData.name}:`, err.message);
+      invalidateTorrent(infoHash, torrentData);
+   });
+}
+
+function resumeDownload(infoHash, torrentData) {
+   try {
+      handleTorrentDownload(infoHash, torrentData);
+      console.log(`📥 [${botId}] resumed download for torrent ${infoHash}`);
+   } catch (err) {
+      console.error(`❌ [${botId}] failed to resume torrent ${infoHash}:`, err.message);
+      restartDownload(infoHash, torrentData);
+   }
+}
+
+function restartDownload(infoHash, torrentData) {
+   try {
+      // Clear any existing state
+      clearState(infoHash);
+
+      // Start fresh download
+      handleTorrentDownload(infoHash, torrentData);
+      console.log(`📥 [${botId}] restarted download for torrent ${infoHash}`);
+   } catch (err) {
+      console.error(`❌ [${botId}] failed to restart torrent ${infoHash}:`, err.message);
+   }
+}
 
 function invalidateTorrent(infoHash, torrentData) {
-   const torrentPath = path.join(config.PATHS.TORRENTS_DIR, `${infoHash}${config.PATHS.TORRENT_EXTENSION}`);
    const outFile = path.join(config.PATHS.UPLOADS_DIR, torrentData.name);
    const piecesDir = path.join(config.PATHS.PIECES_DIR, infoHash);
 
-   // Delete the final output file
+   // Delete the corrupted final output file
    if (fs.existsSync(outFile)) {
-      fs.rmSync(outFile, { recursive: true, force: true });
-      console.log(`🗑️ [${botId}] Deleted output file ${outFile}`);
+      try {
+         fs.rmSync(outFile, { recursive: true, force: true });
+         console.log(`🗑️ [${botId}] deleted corrupted file ${outFile}`);
+      } catch (err) {
+         console.error(`❌ [${botId}] failed to delete corrupted file:`, err.message);
+      }
    }
 
-   // 🔁 Keep pieces directory (we'll revalidate them), but:
-   clearState(infoHash); // remove old piece tracking
+   // Clear state but keep pieces (they'll be revalidated)
+   clearState(infoHash);
 
-   // Re-initiate download — will scan `.part` files and reuse valid ones
-   download(torrentData, infoHash, mqttClient)
-      .then(() => {
-         console.log(`📥 [${botId}] invalidated torrent ${infoHash}, restarting cleanly`);
-      })
-      .catch(err => {
-         console.error(`❌ [${botId}] failed to invalidate torrent ${infoHash}:`, err);
-         const statusTopic = `ghostswarm/${botId}/status`;
-         mqttClient.publish(statusTopic, JSON.stringify({
-            status: "error",
-            error: err.message,
-            time: Date.now()
-         }));
-      });
+   // Restart download
+   restartDownload(infoHash, torrentData);
+   console.log(`📥 [${botId}] invalidated and restarting torrent ${infoHash}`);
 }
+
+// Add periodic status reporting
+setInterval(() => {
+   const downloadStatus = getDownloadStatus();
+   const activeDownloads = Object.keys(downloadStatus).length;
+
+   if (activeDownloads > 0) {
+      console.log(`📊 [${botId}] active downloads: ${activeDownloads}`);
+
+      for (const [infoHash, status] of Object.entries(downloadStatus)) {
+         console.log(`  📦 ${status.name}: ${status.percent}% (${status.completed}/${status.total}) | Peers: ${status.peers} | Queue: ${status.queue}`);
+      }
+   }
+}, 30000); // Log status every 30 seconds
 
