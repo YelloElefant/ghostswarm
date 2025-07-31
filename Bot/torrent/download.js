@@ -19,6 +19,26 @@ try {
 
 let mqtt;
 
+// Helper function to clean IP addresses
+function cleanIPAddress(ip) {
+   if (!ip) return null;
+
+   // Remove IPv6 prefix for IPv4-mapped addresses
+   if (ip.startsWith('::ffff:')) {
+      return ip.substring(7);
+   }
+
+   // Remove port if included
+   if (ip.includes(':') && !ip.startsWith('[')) {
+      const parts = ip.split(':');
+      if (parts.length === 2 && !isNaN(parts[1])) {
+         return parts[0];
+      }
+   }
+
+   return ip;
+}
+
 class TorrentDownloader {
    constructor(infoHash, payload) {
       this.infoHash = infoHash;
@@ -32,6 +52,7 @@ class TorrentDownloader {
       this.availablePeers = []; // Pool of potential peers
       this.requestQueue = []; // Queue of piece requests
       this.pendingRequests = new Map(); // requestId -> request info
+      this.pendingChunks = new Map(); // requestId -> chunk data
 
       // Download state
       this.downloadProgress = {
@@ -47,6 +68,9 @@ class TorrentDownloader {
       this.lastLogTime = 0;
       this.lastCompletedCount = 0;
       this.isComplete = false;
+      this.seederConnected = false;
+      this.reconnectAttempts = 0;
+      this.maxReconnectAttempts = 5;
 
       this.setupDirectories();
       this.validateExistingPieces();
@@ -113,28 +137,43 @@ class TorrentDownloader {
          return this.combineFile();
       }
 
-      // Connect to seeder WebSocket to get peers
-      await this.connectToSeeder();
+      // Try to connect to both seeder (port 5000) and tracker (port 5001)
+      await Promise.allSettled([
+         this.connectToSeeder(),
+         this.connectToTracker()
+      ]);
 
-      // Start the download process
+      // Start the download process regardless of connections
       this.startDownload();
    }
 
    async connectToSeeder() {
       return new Promise((resolve, reject) => {
-         const seederUrl = `ws://${DOWNLOAD_CONFIG.CONTROLLER_IP}:${DOWNLOAD_CONFIG.CONTROLLER_PORT}`;
-         console.log(`🔗 Connecting to seeder at ${seederUrl}`);
+         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.warn(`⚠️ Max reconnection attempts reached for seeder, skipping...`);
+            return reject(new Error('Max reconnection attempts reached'));
+         }
+
+         const seederUrl = `ws://${DOWNLOAD_CONFIG.CONTROLLER_IP}:5000`;
+         console.log(`🔗 Connecting to seeder at ${seederUrl} (attempt ${this.reconnectAttempts + 1})`);
 
          const seederWs = new WebSocket(seederUrl);
+         let connectionTimeout = setTimeout(() => {
+            seederWs.terminate();
+            reject(new Error('Seeder connection timeout'));
+         }, 5000);
 
          seederWs.on('open', () => {
+            clearTimeout(connectionTimeout);
             console.log(`✅ Connected to seeder`);
+            this.seederConnected = true;
+            this.reconnectAttempts = 0;
 
             // Announce this torrent to get peers
             seederWs.send(JSON.stringify({
                type: 'announce',
                infoHash: this.infoHash,
-               pieces: [], // We're downloading, not seeding yet
+               pieces: Array.from(this.downloadProgress.pieces),
                torrentName: this.payload.name
             }));
          });
@@ -152,17 +191,108 @@ class TorrentDownloader {
          });
 
          seederWs.on('error', (err) => {
+            clearTimeout(connectionTimeout);
             console.error(`❌ Seeder connection error:`, err.message);
+            this.seederConnected = false;
+            this.reconnectAttempts++;
             reject(err);
          });
 
          seederWs.on('close', () => {
+            clearTimeout(connectionTimeout);
             console.warn(`⚠️ Seeder connection closed`);
-            setTimeout(() => this.connectToSeeder(), 5000); // Reconnect after 5 seconds
+            this.seederConnected = false;
          });
 
          this.seederWs = seederWs;
       });
+   }
+
+   async connectToTracker() {
+      return new Promise((resolve, reject) => {
+         const trackerUrl = `ws://${DOWNLOAD_CONFIG.CONTROLLER_IP}:5001`;
+         console.log(`🔗 Connecting to tracker at ${trackerUrl}`);
+
+         const trackerWs = new WebSocket(trackerUrl);
+         let connectionTimeout = setTimeout(() => {
+            trackerWs.terminate();
+            reject(new Error('Tracker connection timeout'));
+         }, 5000);
+
+         trackerWs.on('open', () => {
+            clearTimeout(connectionTimeout);
+            console.log(`✅ Connected to tracker`);
+            this.trackerConnected = true;
+
+            // Request swarm info from tracker
+            trackerWs.send(JSON.stringify({
+               type: 'get_swarm',
+               infoHash: this.infoHash
+            }));
+         });
+
+         trackerWs.on('message', (data) => {
+            try {
+               const message = JSON.parse(data.toString());
+               this.handleTrackerMessage(message);
+               if (message.type === 'swarm_response') {
+                  resolve();
+               }
+            } catch (err) {
+               console.error(`❌ Failed to parse tracker message:`, err.message);
+            }
+         });
+
+         trackerWs.on('error', (err) => {
+            clearTimeout(connectionTimeout);
+            console.error(`❌ Tracker connection error:`, err.message);
+            this.trackerConnected = false;
+            reject(err);
+         });
+
+         trackerWs.on('close', () => {
+            clearTimeout(connectionTimeout);
+            console.warn(`⚠️ Tracker connection closed`);
+            this.trackerConnected = false;
+         });
+
+         this.trackerWs = trackerWs;
+      });
+   }
+
+   handleTrackerMessage(message) {
+      switch (message.type) {
+         case 'swarm_response':
+            console.log(`📊 Tracker swarm info: ${message.peers?.length || 0} peers with pieces`);
+
+            if (message.peers && message.peers.length > 0) {
+               message.peers.forEach(peer => {
+                  // Check if peer already exists
+                  const existingPeer = this.availablePeers.find(p => p.peerId === peer.botId);
+                  if (!existingPeer && peer.botId !== botId) {
+                     this.availablePeers.push({
+                        peerId: peer.botId,
+                        ip: peer.ip || DOWNLOAD_CONFIG.CONTROLLER_IP, // Fallback to controller IP
+                        port: 5000,
+                        type: 'websocket',
+                        pieces: peer.pieces || []
+                     });
+                     console.log(`👤 Added peer from tracker: ${peer.botId} (${peer.pieces?.length || 0} pieces)`);
+                  }
+               });
+            }
+
+            console.log(`👥 Total available peers: ${this.availablePeers.length}`);
+            break;
+
+         case 'peer_update':
+            // Real-time peer updates from tracker
+            if (message.botId !== botId) {
+               console.log(`📦 Peer ${message.botId} updated: piece ${message.pieceIndex}`);
+               // Could update our peer knowledge here
+            }
+            break;
+      }
    }
 
    handleSeederMessage(message, ws) {
@@ -173,22 +303,42 @@ class TorrentDownloader {
 
          case 'announce_response':
             console.log(`📢 Got swarm info: ${message.swarmSize} peers`);
-            this.availablePeers = [
-               // Always include controller as a peer
-               {
-                  peerId: 'controller',
-                  ip: DOWNLOAD_CONFIG.CONTROLLER_IP,
-                  port: DOWNLOAD_CONFIG.CONTROLLER_PORT,
-                  type: 'http' // Use HTTP for controller
-               },
-               // Add WebSocket peers
-               ...message.peers.map(peer => ({
-                  peerId: peer.peerId,
-                  ip: peer.ip,
-                  port: 5000,
-                  type: 'websocket'
-               }))
-            ];
+
+            // Always add controller as a WebSocket peer (not HTTP)
+            const controllerPeer = {
+               peerId: 'controller',
+               ip: DOWNLOAD_CONFIG.CONTROLLER_IP,
+               port: DOWNLOAD_CONFIG.CONTROLLER_PORT,
+               type: 'websocket' // Controller is also a WebSocket peer
+            };
+
+            if (!this.availablePeers.find(p => p.peerId === controllerPeer.peerId)) {
+               this.availablePeers.push(controllerPeer);
+               console.log(`👤 Added controller peer: ${controllerPeer.ip}:${controllerPeer.port}`);
+            }
+
+            // Add other WebSocket peers with cleaned IP addresses
+            if (message.peers && message.peers.length > 0) {
+               message.peers.forEach(peer => {
+                  const cleanIP = cleanIPAddress(peer.ip);
+                  if (cleanIP && cleanIP !== 'localhost' && cleanIP !== '127.0.0.1') {
+                     // Check if peer already exists
+                     const existingPeer = this.availablePeers.find(p => p.peerId === peer.peerId);
+                     if (!existingPeer) {
+                        this.availablePeers.push({
+                           peerId: peer.peerId,
+                           ip: cleanIP,
+                           port: 5000, // Standard peer port
+                           type: 'websocket'
+                        });
+                        console.log(`👤 Added peer: ${peer.peerId} at ${cleanIP}:5000`);
+                     }
+                  } else {
+                     console.warn(`⚠️ Skipping peer ${peer.peerId} with invalid IP: ${peer.ip}`);
+                  }
+               });
+            }
+
             console.log(`👥 Available peers: ${this.availablePeers.length}`);
             break;
 
@@ -200,6 +350,11 @@ class TorrentDownloader {
    }
 
    startDownload() {
+      // If no seeder connection and no peers, add controller as fallback
+      if (!this.seederConnected && this.availablePeers.length === 0) {
+         this.addControllerAsPeer();
+      }
+
       // Fill the request queue with pieces we need (in order)
       this.fillRequestQueue();
 
@@ -213,10 +368,17 @@ class TorrentDownloader {
       this.logProgress(true);
 
       // Periodic maintenance
-      setInterval(() => {
+      this.downloadInterval = setInterval(() => {
          this.maintainPeerConnections();
          this.processRequestQueue();
          this.logProgress();
+
+         // Try to reconnect to seeder if disconnected and not at max attempts
+         if (!this.seederConnected && this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.connectToSeeder().catch(() => {
+               // Ignore errors, we'll try again later
+            });
+         }
       }, 1000);
    }
 
@@ -241,6 +403,7 @@ class TorrentDownloader {
          if (peer.ws && peer.ws.readyState !== WebSocket.OPEN && peer.type === 'websocket') {
             this.peers.delete(peerId);
             this.activePeerConnections.delete(peerId);
+            console.log(`🔌 Removed disconnected peer: ${peerId}`);
          }
       }
 
@@ -260,43 +423,63 @@ class TorrentDownloader {
 
       this.activePeerConnections.add(peerInfo.peerId);
 
-      if (peerInfo.type === 'http') {
-         // HTTP peer (controller) - no persistent connection needed
-         this.peers.set(peerInfo.peerId, {
-            ...peerInfo,
-            connected: true,
-            requestsInFlight: 0
-         });
-         console.log(`🔗 Added HTTP peer: ${peerInfo.peerId}`);
-      } else {
-         // WebSocket peer
-         const ws = new WebSocket(`ws://${peerInfo.ip}:${peerInfo.port}`);
+      // All peers are now WebSocket peers (including controller)
+      const cleanIP = cleanIPAddress(peerInfo.ip);
+      if (!cleanIP) {
+         console.error(`❌ Invalid IP for peer ${peerInfo.peerId}: ${peerInfo.ip}`);
+         this.activePeerConnections.delete(peerInfo.peerId);
+         return;
+      }
+
+      const wsUrl = `ws://${cleanIP}:${peerInfo.port}`;
+      console.log(`🔗 Connecting to peer: ${peerInfo.peerId} at ${wsUrl}`);
+
+      try {
+         const ws = new WebSocket(wsUrl);
+
+         // Set connection timeout
+         const connectionTimeout = setTimeout(() => {
+            ws.terminate();
+            console.warn(`⏰ Connection timeout for peer ${peerInfo.peerId}`);
+            this.activePeerConnections.delete(peerInfo.peerId);
+         }, 5000);
 
          ws.on('open', () => {
+            clearTimeout(connectionTimeout);
             this.peers.set(peerInfo.peerId, {
                ...peerInfo,
+               ip: cleanIP,
                ws: ws,
                connected: true,
                requestsInFlight: 0
             });
-            console.log(`🔗 Connected to peer: ${peerInfo.peerId} (${peerInfo.ip})`);
+            console.log(`✅ Connected to peer: ${peerInfo.peerId} (${cleanIP}:${peerInfo.port})`);
          });
 
          ws.on('message', (data) => {
-            this.handlePeerMessage(peerInfo.peerId, JSON.parse(data.toString()));
+            try {
+               this.handlePeerMessage(peerInfo.peerId, JSON.parse(data.toString()));
+            } catch (err) {
+               console.error(`❌ Invalid message from peer ${peerInfo.peerId}:`, err.message);
+            }
          });
 
          ws.on('close', () => {
+            clearTimeout(connectionTimeout);
             this.peers.delete(peerInfo.peerId);
             this.activePeerConnections.delete(peerInfo.peerId);
             console.log(`🔌 Peer ${peerInfo.peerId} disconnected`);
          });
 
          ws.on('error', (err) => {
+            clearTimeout(connectionTimeout);
             console.error(`❌ Peer ${peerInfo.peerId} error:`, err.message);
             this.peers.delete(peerInfo.peerId);
             this.activePeerConnections.delete(peerInfo.peerId);
          });
+      } catch (err) {
+         console.error(`❌ Failed to create WebSocket for peer ${peerInfo.peerId}:`, err.message);
+         this.activePeerConnections.delete(peerInfo.peerId);
       }
    }
 
@@ -308,7 +491,15 @@ class TorrentDownloader {
          peer.connected && peer.requestsInFlight < 2 // Max 2 requests per peer
       );
 
-      if (availablePeers.length === 0) return;
+      if (availablePeers.length === 0) {
+         // If no peers available, log a warning periodically
+         const now = Date.now();
+         if (!this.lastNoPeersWarning || (now - this.lastNoPeersWarning) > 10000) {
+            console.warn(`⚠️ No available peers for ${this.downloadProgress.torrentName}. Available: ${this.availablePeers.length}, Connected: ${this.peers.size}`);
+            this.lastNoPeersWarning = now;
+         }
+         return;
+      }
 
       // Send requests to available peers
       while (this.requestQueue.length > 0 && availablePeers.length > 0) {
@@ -337,59 +528,21 @@ class TorrentDownloader {
 
       this.downloadProgress.pendingPieces.add(request.pieceIndex);
 
-      if (peer.type === 'http') {
-         // HTTP request to controller
-         this.requestPieceHTTP(peer, request, requestId);
-      } else {
-         // WebSocket request to peer
+      // All peers now use WebSocket (including controller)
+      try {
          peer.ws.send(JSON.stringify({
             type: 'request_piece',
             infoHash: this.infoHash,
             pieceIndex: request.pieceIndex,
             requestId: requestId
          }));
+
+         console.log(`📥 Requesting piece ${request.pieceIndex} from ${peer.peerId} (websocket)`);
+      } catch (err) {
+         console.error(`❌ Failed to send request to peer ${peer.peerId}:`, err.message);
+         this.handlePieceFailure(requestId, `Send failed: ${err.message}`);
+         return;
       }
-
-      console.log(`📥 Requesting piece ${request.pieceIndex} from ${peer.peerId} (${peer.type})`);
-   }
-
-   requestPieceHTTP(peer, request, requestId) {
-      const http = require('http');
-      const options = {
-         hostname: peer.ip,
-         port: peer.port,
-         path: `/piece/${this.infoHash}/${request.pieceIndex}`,
-         method: 'GET',
-         timeout: 15000
-      };
-
-      const req = http.request(options, res => {
-         if (res.statusCode !== 200) {
-            return this.handlePieceFailure(requestId, `HTTP ${res.statusCode}: ${res.statusMessage}`);
-         }
-
-         const chunks = [];
-         res.on('data', chunk => chunks.push(chunk));
-         res.on('end', () => {
-            try {
-               const buffer = Buffer.concat(chunks);
-               this.handlePieceSuccess(requestId, buffer);
-            } catch (err) {
-               this.handlePieceFailure(requestId, `Failed to concatenate chunks: ${err.message}`);
-            }
-         });
-      });
-
-      req.on('error', err => {
-         this.handlePieceFailure(requestId, err.message);
-      });
-
-      req.on('timeout', () => {
-         req.destroy();
-         this.handlePieceFailure(requestId, 'Request timeout');
-      });
-
-      req.end();
    }
 
    handlePeerMessage(peerId, message) {
@@ -397,7 +550,9 @@ class TorrentDownloader {
          case 'piece_response':
             if (message.status === 'start') {
                // Piece transfer starting
-               this.pendingChunks = new Map();
+               if (!this.pendingChunks) {
+                  this.pendingChunks = new Map();
+               }
                this.pendingChunks.set(message.requestId, {
                   chunks: new Array(message.totalChunks),
                   totalSize: message.totalSize,
@@ -406,18 +561,20 @@ class TorrentDownloader {
                });
             } else if (message.status === 'complete') {
                // Piece transfer complete
-               const chunkData = this.pendingChunks.get(message.requestId);
-               if (chunkData) {
+               const chunkData = this.pendingChunks?.get(message.requestId);
+               if (chunkData && chunkData.receivedChunks === chunkData.totalChunks) {
                   const buffer = Buffer.concat(chunkData.chunks);
                   this.handlePieceSuccess(message.requestId, buffer);
                   this.pendingChunks.delete(message.requestId);
+               } else {
+                  this.handlePieceFailure(message.requestId, 'Incomplete chunk data');
                }
             }
             break;
 
          case 'piece_chunk':
-            const chunkData = this.pendingChunks.get(message.requestId);
-            if (chunkData) {
+            const chunkData = this.pendingChunks?.get(message.requestId);
+            if (chunkData && message.chunkIndex < chunkData.totalChunks) {
                chunkData.chunks[message.chunkIndex] = Buffer.from(message.data, 'base64');
                chunkData.receivedChunks++;
             }
@@ -459,6 +616,9 @@ class TorrentDownloader {
          if (this.downloadProgress.completed >= this.downloadProgress.total) {
             this.isComplete = true;
             console.log(`🎉 All pieces downloaded for ${this.payload.name}!`);
+            if (this.downloadInterval) {
+               clearInterval(this.downloadInterval);
+            }
             this.combineFile();
          } else {
             // Save progress periodically
@@ -529,13 +689,31 @@ class TorrentDownloader {
          }
       }
 
-      // Also announce to seeder
+      // Announce to seeder if connected
       if (this.seederWs && this.seederWs.readyState === WebSocket.OPEN) {
-         this.seederWs.send(JSON.stringify({
-            type: 'have',
-            infoHash: this.infoHash,
-            pieceIndex: pieceIndex
-         }));
+         try {
+            this.seederWs.send(JSON.stringify({
+               type: 'have',
+               infoHash: this.infoHash,
+               pieceIndex: pieceIndex
+            }));
+         } catch (err) {
+            console.warn(`⚠️ Failed to announce to seeder: ${err.message}`);
+         }
+      }
+
+      // Announce to tracker if connected
+      if (this.trackerWs && this.trackerWs.readyState === WebSocket.OPEN) {
+         try {
+            this.trackerWs.send(JSON.stringify({
+               type: 'announce_piece',
+               infoHash: this.infoHash,
+               pieceIndex: pieceIndex,
+               botId: botId
+            }));
+         } catch (err) {
+            console.warn(`⚠️ Failed to announce to tracker: ${err.message}`);
+         }
       }
    }
 

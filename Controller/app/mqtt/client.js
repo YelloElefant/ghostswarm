@@ -24,7 +24,7 @@ function startMQTT() {
          if (err) console.error('❌ MQTT download sub failed:', err);
          else console.log('📡 Subscribed to download requests');
       });
-      client.subscribe(`ghostswarm/torrent/have/#`);
+      client.subscribe(`ghostswarm/torrent/have/+`);
    });
 
    return client;

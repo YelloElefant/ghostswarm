@@ -5,6 +5,7 @@ const fs = require('fs');
 const app = express();
 const config = require('./config'); // Assuming you have a config file for constants
 const { redis } = require('./redis/redis');
+const WebSocket = require('ws');
 
 const UPLOADS_DIR = config.UPLOADS_DIR; // where the original uploaded files live
 const TORRENT_DIR = config.TORRENTS_DIR; // where the torrent metadata files are stored
@@ -76,6 +77,121 @@ async function getSwarmMap(redis, infoHash) {
 
 
 
+const TRACKER_PORT = 5001;
+
+const wss = new WebSocket.Server({ port: TRACKER_PORT });
+
+console.log(`🎯 Tracker server running on port ${TRACKER_PORT}`);
+
+wss.on('connection', (ws, req) => {
+   console.log(`🔗 Tracker client connected from ${req.socket.remoteAddress}`);
+
+   ws.on('message', async (data) => {
+      try {
+         const message = JSON.parse(data.toString());
+         await handleTrackerMessage(ws, message);
+      } catch (err) {
+         console.error(`❌ Invalid tracker message:`, err.message);
+         ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Invalid message format'
+         }));
+      }
+   });
+
+   ws.on('close', () => {
+      console.log(`🔌 Tracker client disconnected`);
+   });
+});
+
+async function handleTrackerMessage(ws, message) {
+   switch (message.type) {
+      case 'get_swarm':
+         await handleGetSwarm(ws, message.infoHash);
+         break;
+
+      case 'announce_piece':
+         await handleAnnouncePiece(message);
+         break;
+
+      default:
+         console.warn(`⚠️ Unknown tracker message type: ${message.type}`);
+   }
+}
+
+async function handleGetSwarm(ws, infoHash) {
+   try {
+      // Get swarm map from Redis
+      const swarmKey = `swarm:${infoHash}`;
+      const swarmData = await redis.hgetall(swarmKey);
+
+      const peers = [];
+      for (const [pieceIndex, botsJson] of Object.entries(swarmData)) {
+         const bots = JSON.parse(botsJson || '[]');
+
+         bots.forEach(botId => {
+            let peer = peers.find(p => p.botId === botId);
+            if (!peer) {
+               peer = { botId, pieces: [] };
+               peers.push(peer);
+            }
+            peer.pieces.push(parseInt(pieceIndex));
+         });
+      }
+
+      ws.send(JSON.stringify({
+         type: 'swarm_response',
+         infoHash: infoHash,
+         peers: peers
+      }));
+
+      console.log(`📊 Sent swarm info for ${infoHash}: ${peers.length} peers`);
+
+   } catch (err) {
+      console.error(`❌ Failed to get swarm info:`, err.message);
+      ws.send(JSON.stringify({
+         type: 'error',
+         message: 'Failed to get swarm info'
+      }));
+   }
+}
+
+async function handleAnnouncePiece(message) {
+   const { infoHash, pieceIndex, botId } = message;
+
+   try {
+      // Update Redis swarm map
+      const swarmKey = `swarm:${infoHash}`;
+      const pieceKey = pieceIndex.toString();
+
+      const existingBots = await redis.hget(swarmKey, pieceKey);
+      const bots = existingBots ? JSON.parse(existingBots) : [];
+
+      if (!bots.includes(botId)) {
+         bots.push(botId);
+         await redis.hset(swarmKey, pieceKey, JSON.stringify(bots));
+         console.log(`📦 Updated swarm: ${botId} has piece ${pieceIndex} of ${infoHash}`);
+      }
+
+      // Broadcast to other connected clients
+      wss.clients.forEach(client => {
+         if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+               type: 'peer_update',
+               infoHash: infoHash,
+               pieceIndex: pieceIndex,
+               botId: botId
+            }));
+         }
+      });
+
+   } catch (err) {
+      console.error(`❌ Failed to announce piece:`, err.message);
+   }
+}
+
 app.listen(PORT, () => {
    console.log(`Tracker service listening on port ${PORT}`);
 });
+
+module.exports = { wss };

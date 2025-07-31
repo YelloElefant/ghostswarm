@@ -135,7 +135,7 @@ async function handlePieceRequest(peerId, message) {
    const { infoHash, pieceIndex, requestId } = message;
 
    try {
-      const torrentPath = path.join(TORRENT_DIR, `${infoHash}${config.PATHS.TORRENT_EXTENSION}`);
+      const torrentPath = path.join(TORRENT_DIR, `${infoHash}${config.TORRENT_EXTENSION}`);
 
       if (!fs.existsSync(torrentPath)) {
          return sendError(peerId, requestId, 'Torrent not found');
@@ -279,7 +279,7 @@ function generatePeerId() {
 // Keep HTTP endpoint for compatibility
 app.get('/piece/:infoHash/:index', (req, res) => {
    const { infoHash, index } = req.params;
-   const torrentPath = path.join(TORRENT_DIR, `${infoHash}${config.PATHS.TORRENT_EXTENSION}`);
+   const torrentPath = path.join(TORRENT_DIR, `${infoHash}${config.TORRENT_EXTENSION}`);
 
    if (!fs.existsSync(torrentPath)) return res.status(404).send('Torrent not found');
 
