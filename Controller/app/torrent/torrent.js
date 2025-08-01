@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const path = require('path');
 const config = require('../config');
 
-async function registerTorrent(filepath) {
+async function registerTorrent(filepath, tags = []) {
    try {
       if (!fs.existsSync(filepath)) {
          throw new Error(`File not found: ${filepath}`);
@@ -59,6 +59,8 @@ async function registerTorrent(filepath) {
          size: dataSize,
          pieceLength,
          pieces,
+         tags, // Add tags to the torrent info
+         created: new Date().toISOString(),
       };
 
       const infoHash = crypto.createHash('sha1').update(JSON.stringify(info)).digest('hex');

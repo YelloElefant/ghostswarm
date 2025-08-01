@@ -29,6 +29,7 @@ router.post('/register', upload.single('torrentFile'), async (req, res) => {
 
       const filePath = req.file.path;
       const originalName = req.file.originalname;
+      const tags = req.body.tags ? req.body.tags.split(',').map(tag => tag.trim()) : [];
 
       // Move to a proper location
       const destPath = path.join(config.UPLOADS_DIR, originalName);
@@ -38,7 +39,7 @@ router.post('/register', upload.single('torrentFile'), async (req, res) => {
       fs.renameSync(filePath, destPath);
 
       // Register and get hash
-      const hash = await registerTorrent(destPath);
+      const hash = await registerTorrent(destPath, tags);
 
 
       // Read the torrent file

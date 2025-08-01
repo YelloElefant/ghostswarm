@@ -429,9 +429,28 @@ function updateDownloadList(bot) {
                statusText = download.status;
          }
 
+         // Format file size
+         const formatSize = (bytes) => {
+            if (!bytes) return 'Unknown';
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+         };
+
+         // Generate tags HTML
+         const tagsHtml = download.tags && download.tags.length > 0
+            ? `<div class="download-tags">
+                       ${download.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                     </div>`
+            : '';
+
          return `
                   <div class="download-item ${statusClass}">
-                     <div class="download-name">${download.name || infoHash.slice(0, 8)}...</div>
+                     <div class="download-header">
+                        <div class="download-name">${download.name || infoHash.slice(0, 8)}...</div>
+                        <div class="download-size">${formatSize(download.size)}</div>
+                     </div>
+                     ${tagsHtml}
                      <div class="progress-bar">
                         <div class="progress-fill" style="width: ${progress}%"></div>
                      </div>
@@ -439,11 +458,12 @@ function updateDownloadList(bot) {
                         <span>${download.completed}/${download.total} pieces (${download.percent}%)</span>
                         <span>${statusText}</span>
                      </div>
-                     <div style="font-size: 11px; color: #aaa;">
+                     <div class="download-stats">
                         Peers: ${download.peers || 0} | 
                         Queue: ${download.queue || 0} | 
                         Failed: ${download.failed || 0}
                      </div>
+                     ${download.createdAt ? `<div class="download-created">Created: ${new Date(download.createdAt).toLocaleDateString()}</div>` : ''}
                   </div>
                `;
       }).join('')}

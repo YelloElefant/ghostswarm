@@ -40,9 +40,9 @@ function cleanIPAddress(ip) {
 }
 
 class TorrentDownloader {
-   constructor(infoHash, payload) {
+   constructor(infoHash, metadata) {
       this.infoHash = infoHash;
-      this.payload = payload;
+      this.metadata = metadata; // Store full metadata including tags
       this.outDir = path.join(PATHS.PIECES_DIR, infoHash);
 
       // BitTorrent-like peer management
@@ -56,10 +56,10 @@ class TorrentDownloader {
 
       // Download state
       this.downloadProgress = {
-         total: payload.pieces.length,
+         total: metadata.pieces.length,
          completed: 0,
          pieces: new Set(),
-         torrentName: payload.name,
+         torrentName: metadata.name,
          pendingPieces: new Set(),
          failedPieces: new Set()
       };
@@ -82,7 +82,7 @@ class TorrentDownloader {
       try {
          fs.mkdirSync(path.dirname(torrentPath), { recursive: true });
          fs.mkdirSync(this.outDir, { recursive: true });
-         fs.writeFileSync(torrentPath, JSON.stringify(this.payload, null, 2));
+         fs.writeFileSync(torrentPath, JSON.stringify(this.metadata, null, 2));
       } catch (err) {
          console.error(`❌ Failed to setup directories for ${this.infoHash}:`, err.message);
          throw err;
@@ -97,9 +97,9 @@ class TorrentDownloader {
 
       let validPieces = 0;
       const pieceMap = new Map();
-      this.payload.pieces.forEach(p => pieceMap.set(p.index, p.hash));
+      this.metadata.pieces.forEach(p => pieceMap.set(p.index, p.hash));
 
-      for (let i = 0; i < this.payload.pieces.length; i++) {
+      for (let i = 0; i < this.metadata.pieces.length; i++) {
          const filePath = path.join(this.outDir, `${i}.part`);
          const expectedHash = pieceMap.get(i);
 
@@ -129,7 +129,7 @@ class TorrentDownloader {
    }
 
    async start() {
-      console.log(`🚀 Starting torrent download: ${this.payload.name} (${this.payload.pieces.length} pieces)`);
+      console.log(`🚀 Starting torrent download: ${this.metadata.name} (${this.metadata.pieces.length} pieces)`);
       console.log(`📦 Download status: ${this.downloadProgress.completed}/${this.downloadProgress.total} pieces already available`);
 
       if (this.downloadProgress.completed >= this.downloadProgress.total) {
@@ -174,7 +174,7 @@ class TorrentDownloader {
                type: 'announce',
                infoHash: this.infoHash,
                pieces: Array.from(this.downloadProgress.pieces),
-               torrentName: this.payload.name
+               torrentName: this.metadata.name
             }));
          });
 
@@ -385,7 +385,7 @@ class TorrentDownloader {
 
    fillRequestQueue() {
       // Add pieces we need to the queue (in order)
-      for (let i = 0; i < this.payload.pieces.length; i++) {
+      for (let i = 0; i < this.metadata.pieces.length; i++) {
          if (!this.downloadProgress.pieces.has(i) &&
             !this.downloadProgress.pendingPieces.has(i) &&
             !this.downloadProgress.failedPieces.has(i)) {
@@ -592,7 +592,7 @@ class TorrentDownloader {
       if (!request) return;
 
       const pieceIndex = request.pieceIndex;
-      const piece = this.payload.pieces[pieceIndex];
+      const piece = this.metadata.pieces[pieceIndex];
 
       // Verify hash
       const actualHash = crypto.createHash('sha1').update(buffer).digest('hex');
@@ -616,7 +616,7 @@ class TorrentDownloader {
          // Check completion
          if (this.downloadProgress.completed >= this.downloadProgress.total) {
             this.isComplete = true;
-            console.log(`🎉 All pieces downloaded for ${this.payload.name}!`);
+            console.log(`🎉 All pieces downloaded for ${this.metadata.name}!`);
             if (this.downloadInterval) {
                clearInterval(this.downloadInterval);
             }
@@ -730,7 +730,7 @@ class TorrentDownloader {
    }
 
    combineFile() {
-      const finalFile = path.join(PATHS.UPLOADS_DIR, this.payload.name);
+      const finalFile = path.join(PATHS.UPLOADS_DIR, this.metadata.name);
 
       try {
          fs.mkdirSync(PATHS.UPLOADS_DIR, { recursive: true });
@@ -739,7 +739,7 @@ class TorrentDownloader {
          return;
       }
 
-      console.log(`🔄 Combining ${this.payload.pieces.length} pieces into ${this.payload.name}`);
+      console.log(`🔄 Combining ${this.metadata.pieces.length} pieces into ${this.metadata.name}`);
 
       try {
          const writeStream = fs.createWriteStream(finalFile);
@@ -747,7 +747,7 @@ class TorrentDownloader {
          let lastLogTime = 0;
 
          const processPiece = (index) => {
-            if (index >= this.payload.pieces.length) {
+            if (index >= this.metadata.pieces.length) {
                writeStream.end();
                return;
             }
@@ -765,10 +765,10 @@ class TorrentDownloader {
             // Log progress
             const now = Date.now();
             if (piecesProcessed % 25 === 0 ||
-               piecesProcessed === this.payload.pieces.length ||
+               piecesProcessed === this.metadata.pieces.length ||
                (now - lastLogTime) > 2000) {
-               const percent = ((piecesProcessed / this.payload.pieces.length) * 100).toFixed(1);
-               console.log(`📝 Combining: ${piecesProcessed}/${this.payload.pieces.length} pieces (${percent}%)`);
+               const percent = ((piecesProcessed / this.metadata.pieces.length) * 100).toFixed(1);
+               console.log(`📝 Combining: ${piecesProcessed}/${this.metadata.pieces.length} pieces (${percent}%)`);
                lastLogTime = now;
             }
 
@@ -777,14 +777,14 @@ class TorrentDownloader {
 
          writeStream.on('finish', () => {
             const stats = fs.statSync(finalFile);
-            console.log(`📦 ✅ ${this.payload.name} assembled successfully! (${stats.size} bytes)`);
+            console.log(`📦 ✅ ${this.metadata.name} assembled successfully! (${stats.size} bytes)`);
 
             // Cleanup
             setTimeout(() => {
                try {
                   if (fs.existsSync(this.outDir)) {
                      fs.rmSync(this.outDir, { recursive: true });
-                     console.log(`🧹 Cleaned up pieces for ${this.payload.name}`);
+                     console.log(`🧹 Cleaned up pieces for ${this.metadata.name}`);
                   }
                   delete activeDownloads[this.infoHash];
                   state.clearState(this.infoHash);
@@ -838,13 +838,10 @@ function getDownloadStatus() {
       } else if (prog.failedPieces.size > 0 && prog.pendingPieces.size === 0 && downloader.requestQueue.length === 0) {
          downloadStatus = 'failed';
       } else if (prog.pendingPieces.size > 0 || downloader.requestQueue.length > 0) {
-         // Actually downloading if we have pending pieces or queued requests
          downloadStatus = 'downloading';
       } else if (downloader.activePeerConnections.size === 0) {
-         // No peers connected
          downloadStatus = 'no_peers';
       } else {
-         // Connected to peers but no active requests - might be waiting
          downloadStatus = 'stalled';
       }
 
@@ -858,7 +855,10 @@ function getDownloadStatus() {
          remaining: remainingPieces,
          peers: downloader.activePeerConnections.size,
          queue: downloader.requestQueue.length,
-         status: downloadStatus
+         status: downloadStatus,
+         tags: downloader.metadata?.tags || [], // Include tags from metadata
+         size: downloader.metadata?.size || 0,
+         createdAt: downloader.metadata?.createdAt || null
       };
    }
    return status;
