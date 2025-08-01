@@ -3,6 +3,12 @@ const fs = require('fs');
 const crypto = require('crypto');
 const path = require('path');
 const config = require('../config');
+// Controller/app/torrent/torrent.js - WebSocket-optimized piece sizes
+function nearestPowerOfTwo(x) {
+   return Math.pow(2, Math.ceil(Math.log2(x)));
+}
+
+const ONE_MB = 1024 * 1024;
 
 async function registerTorrent(filepath, tags = []) {
    try {
@@ -14,30 +20,24 @@ async function registerTorrent(filepath, tags = []) {
       const fileStat = fs.statSync(filepath);
       const dataSize = fileStat.size;
 
-      // Choose piece size based on file size
-      let pieceLength;
-      if (dataSize < 100 * 1024 * 1024) pieceLength = 64 * 1024; // <100MB → 64KB
-      else if (dataSize < 1024 * 1024 * 1024) pieceLength = 512 * 1024; // <1GB → 512KB
-      else pieceLength = 1024 * 1024; // ≥1GB → 1MB
+      const pieceLength = ONE_MB; // 🔒 Force 1MB piece size
+      const estimatedPieces = Math.ceil(dataSize / pieceLength);
+
+      console.log(`📦 Registering ${filename} (${(dataSize / ONE_MB).toFixed(2)} MB)`);
+      console.log(`📏 Using 1MB piece size: ${estimatedPieces} pieces`);
 
       const pieces = [];
       let pieceBuffer = Buffer.alloc(0);
-      let totalSize = 0;
       let pieceIndex = 0;
-
-      console.log(`📦 Registering ${filename} (${(dataSize / 1024 / 1024).toFixed(2)} MB) with piece size ${pieceLength / 1024} KB...`);
 
       await new Promise((resolve, reject) => {
          const stream = fs.createReadStream(filepath);
-
          stream.on('data', chunk => {
-            totalSize += chunk.length;
             pieceBuffer = Buffer.concat([pieceBuffer, chunk]);
 
             while (pieceBuffer.length >= pieceLength) {
                const piece = pieceBuffer.slice(0, pieceLength);
                pieceBuffer = pieceBuffer.slice(pieceLength);
-
                const hash = crypto.createHash('sha1').update(piece).digest('hex');
                pieces.push({ index: pieceIndex++, hash });
             }
@@ -59,18 +59,18 @@ async function registerTorrent(filepath, tags = []) {
          size: dataSize,
          pieceLength,
          pieces,
-         tags, // Add tags to the torrent info
+         tags,
          created: new Date().toISOString(),
+         optimizedForWebSocket: false // You'll need to chunk for WS
       };
 
       const infoHash = crypto.createHash('sha1').update(JSON.stringify(info)).digest('hex');
-      const torrentPath = path.join(config.TORRENTS_DIR, `${infoHash}` + config.TORRENT_EXTENSION);
-
+      const torrentPath = path.join(config.TORRENTS_DIR, `${infoHash}${config.TORRENT_EXTENSION}`);
       fs.mkdirSync(path.dirname(torrentPath), { recursive: true });
       fs.writeFileSync(torrentPath, JSON.stringify(info, null, 2));
 
       console.log(`✅ Registered torrent: ${filename}`);
-      console.log(`🧩 Pieces: ${pieces.length}`);
+      console.log(`🧩 Final pieces: ${pieces.length} (1MB each)`);
       console.log(`🧠 Info hash: ${infoHash}`);
 
       return infoHash;
