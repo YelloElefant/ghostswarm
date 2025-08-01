@@ -608,9 +608,6 @@ class TorrentDownloader {
          this.downloadProgress.completed++;
          this.downloadProgress.pendingPieces.delete(pieceIndex);
 
-         // Announce to swarm
-         this.announceHave(pieceIndex);
-
          console.log(`✅ Piece ${pieceIndex} complete (${this.downloadProgress.completed}/${this.downloadProgress.total})`);
 
          // Check completion
@@ -679,49 +676,6 @@ class TorrentDownloader {
       this.lastCompletedCount = this.downloadProgress.completed;
    }
 
-   announceHave(pieceIndex) {
-      if (mqtt) {
-         try {
-            const topic = `ghostswarm/torrent/have/${botId}`;
-            const msg = { infoHash: this.infoHash, pieceIndex: pieceIndex };
-            mqtt.publish(topic, JSON.stringify(msg), { qos: 1 });
-         } catch (err) {
-            console.warn(`⚠️ Failed to announce piece ${pieceIndex}: ${err.message}`);
-         }
-      }
-
-      // Announce to seeder if connected
-      if (this.seederWs && this.seederWs.readyState === WebSocket.OPEN) {
-         try {
-            this.seederWs.send(JSON.stringify({
-               type: 'have',
-               infoHash: this.infoHash,
-               pieceIndex: pieceIndex
-            }));
-         } catch (err) {
-            console.warn(`⚠️ Failed to announce to seeder: ${err.message}`);
-         }
-      }
-
-      this.announceToTracker(pieceIndex);
-   }
-
-   announceToTracker(pieceIndex) {
-      // Announce to tracker if connected
-      if (this.trackerWs && this.trackerWs.readyState === WebSocket.OPEN) {
-         try {
-            this.trackerWs.send(JSON.stringify({
-               type: 'announce_piece',
-               infoHash: this.infoHash,
-               pieceIndex: pieceIndex,
-               botId: botId
-            }));
-         } catch (err) {
-            console.warn(`⚠️ Failed to announce to tracker: ${err.message}`);
-         }
-      }
-   }
-
    saveState() {
       state.saveState(this.infoHash, {
          completed: this.downloadProgress.completed,
@@ -778,6 +732,7 @@ class TorrentDownloader {
          writeStream.on('finish', () => {
             const stats = fs.statSync(finalFile);
             console.log(`📦 ✅ ${this.metadata.name} assembled successfully! (${stats.size} bytes)`);
+            this.announceCompletion();
 
             // Cleanup
             setTimeout(() => {
@@ -805,6 +760,47 @@ class TorrentDownloader {
 
       } catch (err) {
          console.error(`❌ Error combining pieces: ${err.message}`);
+      }
+   }
+
+   announceCompletion() {
+      if (mqtt) {
+         try {
+            const topic = `ghostswarm/torrent/complete/${botId}`;
+            const msg = { infoHash: this.infoHash };
+            mqtt.publish(topic, JSON.stringify(msg), { qos: 1 });
+         } catch (err) {
+            console.warn(`⚠️ Failed to announce completion: ${err.message}`);
+         }
+      }
+
+      // Announce to seeder if connected
+      if (this.seederWs && this.seederWs.readyState === WebSocket.OPEN) {
+         try {
+            this.seederWs.send(JSON.stringify({
+               type: 'complete',
+               infoHash: this.infoHash
+            }));
+         } catch (err) {
+            console.warn(`⚠️ Failed to announce to seeder: ${err.message}`);
+         }
+      }
+
+      this.announceToTracker();
+   }
+
+   announceToTracker() {
+      // Announce to tracker if connected
+      if (this.trackerWs && this.trackerWs.readyState === WebSocket.OPEN) {
+         try {
+            this.trackerWs.send(JSON.stringify({
+               type: 'announce_complete',
+               infoHash: this.infoHash,
+               botId: botId
+            }));
+         } catch (err) {
+            console.warn(`⚠️ Failed to announce to tracker: ${err.message}`);
+         }
       }
    }
 }

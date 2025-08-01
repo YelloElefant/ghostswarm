@@ -129,8 +129,45 @@ mqttClient.on('message', async (topic, message) => {
       updateSwarmMap(redis, infoHash, pieceIndex, bot);
    }
 
+   else if (topic.startsWith('ghostswarm/torrent/complete/')) {
+      const bot = topic.split('/')[3];
+      const { infoHash } = JSON.parse(message.toString());
+      console.log(`📥 Torrent ${infoHash} completed by ${bot}`);
+      handleAnnounceComplete({ infoHash, botId: bot });
+   }
 
 });
+
+
+function handleAnnounceComplete(message) {
+   const { infoHash, botId } = message;
+   console.log(`📥 Received announce_complete for ${infoHash} from ${botId}`);
+
+   redis.get(`torrent:${infoHash}`, (err, data) => {
+      if (err) {
+         console.error(`❌ Failed to get torrent ${infoHash} from Redis:`, err);
+         return;
+      }
+      if (!data) {
+         console.warn(`⚠️ Torrent ${infoHash} not found in Redis`);
+         return;
+      }
+
+      const torrentData = JSON.parse(data);
+      const pieces = torrentData.pieces.length;
+
+      pieces.forEach((piece, index) => {
+         const swarmKey = `swarm:${infoHash}`;
+         redis.hset(swarmKey, index.toString(), JSON.stringify([botId]), (err) => {
+            if (err) {
+               console.error(`❌ Failed to update swarm map for ${infoHash} piece ${index}:`, err);
+            } else {
+               console.log(`✅ Updated swarm map for ${infoHash} piece ${index} with bot ${botId}`);
+            }
+         });
+      });
+   });
+}
 
 
 

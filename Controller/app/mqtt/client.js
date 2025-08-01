@@ -25,6 +25,7 @@ function startMQTT() {
          else console.log('📡 Subscribed to download requests');
       });
       client.subscribe(`ghostswarm/torrent/have/+`);
+      client.subscribe(`ghostswarm/torrent/complete/+`);
    });
 
    return client;

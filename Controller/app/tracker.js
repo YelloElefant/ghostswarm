@@ -153,6 +153,10 @@ async function handleTrackerMessage(ws, message) {
          await handleAnnouncePiece(message);
          break;
 
+      case 'announce_complete':
+         await handleAnnounceComplete(message);
+         break;
+
       default:
          console.warn(`⚠️ Unknown tracker message type: ${message.type}`);
    }
@@ -327,6 +331,41 @@ setInterval(() => {
    console.log(`💾 Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB used, ${Math.round(memUsage.heapTotal / 1024 / 1024)}MB total, ${activeConnections.size} active connections`);
 
 }, CLEANUP_INTERVAL);
+
+function handleAnnounceComplete(message) {
+   const { infoHash, botId } = message;
+
+   console.log(`✅ Bot ${botId} completed download for ${infoHash}`);
+
+   // get amount of pieces from Redis
+   redis.get("torrent:" + infoHash, (err, data) => {
+      if (err) {
+         console.error(`❌ Failed to get torrent data for ${infoHash}:`, err.message);
+         return;
+      }
+
+      if (!data) {
+         console.warn(`⚠️ No torrent data found for ${infoHash}`);
+         return;
+      }
+
+      const torrentData = JSON.parse(data);
+      const totalPieces = torrentData.pieces.length;
+
+      totalPieces.forEach((pieceIndex) => {
+         // Update swarm map for each piece
+         handleAnnouncePiece({
+            infoHash: infoHash,
+            pieceIndex: pieceIndex,
+            botId: botId
+         });
+      });
+   }
+   );
+
+
+
+}
 
 // Ping/pong to detect dead connections
 setInterval(() => {
