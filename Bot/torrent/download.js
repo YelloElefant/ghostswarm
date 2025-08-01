@@ -877,34 +877,58 @@ async function download(torrent, hash, client) {
 }
 
 function checkTags(tags) {
-   // read and parse tags.json
+   // If no tags provided for torrent, allow it (backward compatibility)
+   if (!tags || !Array.isArray(tags) || tags.length === 0) {
+      console.log(`📝 No tags specified for torrent, allowing download`);
+      return true;
+   }
+
+   // Read bot's allowed tags from tags file
    const tagsFilePath = PATHS.TAGS_FILE;
-   let existingTags = [];
+   let botTags = [];
+
    try {
       if (fs.existsSync(tagsFilePath)) {
-         const data = fs.readFileSync(tagsFilePath, 'utf8');
-         existingTags = JSON.parse(data);
+         const data = fs.readFileSync(tagsFilePath, 'utf8').trim();
+         if (data.length > 0) {
+            botTags = JSON.parse(data);
+
+            // Ensure botTags is an array
+            if (!Array.isArray(botTags)) {
+               console.warn(`⚠️ Bot tags file contains invalid format, treating as no tags`);
+               botTags = [];
+            }
+         }
       }
    } catch (err) {
-      console.error(`❌ Failed to read tags file: ${err.message}`);
+      console.error(`❌ Failed to read bot tags file: ${err.message}`);
+      botTags = [];
    }
 
-   // Check if tags already exist
-   const newTags = tags.filter(tag => {
+   // If bot has no tags configured, allow all torrents (backward compatibility)
+   if (botTags.length === 0) {
+      console.log(`📝 Bot has no tags configured, allowing all torrents`);
+      return true;
+   }
+
+   // Check if torrent has at least one matching tag with bot's allowed tags
+   const matchingTags = tags.filter(tag => {
       if (typeof tag !== 'string') {
-         console.warn(`⚠️ Invalid tag format, expected string but got ${typeof tag}`);
+         console.warn(`⚠️ Invalid torrent tag format, expected string but got ${typeof tag}: ${tag}`);
          return false;
       }
-      return !existingTags.includes(tag);
+      return botTags.includes(tag);
    });
 
-   // check if at least 1 tag from torrent is in tags list
-   const hasMatchingTag = newTags.some(tag => existingTags.includes(tag));
-   if (!hasMatchingTag) {
-      console.warn(`⚠️ No matching tags found for torrent: ${JSON.stringify(tags)}`);
+   if (matchingTags.length > 0) {
+      console.log(`✅ Torrent tags match bot tags: ${matchingTags.join(', ')} (from torrent: [${tags.join(', ')}], bot allows: [${botTags.join(', ')}])`);
+      return true;
+   } else {
+      console.warn(`❌ No matching tags found for torrent`);
+      console.warn(`   Torrent tags: [${tags.join(', ')}]`);
+      console.warn(`   Bot allows: [${botTags.join(', ')}]`);
       return false;
    }
-
 }
 
 module.exports = {
