@@ -58,7 +58,11 @@ router.get('/', async (req, res) => {
                      version: status.version || 'unknown',
                      platform: status.system?.platform || status.platform || 'unknown',
                      memory: status.system?.memory || null,
-                     arch: status.system?.arch || 'unknown'
+                     arch: status.system?.arch || 'unknown',
+                     nodeVersion: status.system?.nodeVersion || process.version || 'unknown',
+                     cpuCount: status.system?.cpuCount || 'unknown',
+                     tags: status.metadata?.tags || [], // Include bot tags
+                     name: status.metadata?.name || 'GhostSwarm Bot'
                   }
                });
             }
@@ -157,6 +161,44 @@ router.post('/:botId/command', async (req, res) => {
    } catch (error) {
       console.error('❌ Error sending command:', error);
       res.status(500).json({ error: 'Failed to send command' });
+   }
+});
+
+// Controller/app/api/bots.js - Add tag management endpoint
+router.post('/:botId/setTag', async (req, res) => {
+   try {
+      if (!mqttClient) {
+         return res.status(500).json({ error: 'MQTT client not initialized' });
+      }
+
+      const { botId } = req.params;
+      const { tags } = req.body;
+
+      if (!Array.isArray(tags)) {
+         return res.status(400).json({ error: 'Tags must be an array of strings' });
+      }
+
+      // Send tags to the specific bot via MQTT
+      const topic = `ghostswarm/settag/${botId}`;
+      const payload = JSON.stringify({ tags });
+
+      mqttClient.publish(topic, payload, { qos: 1 }, (err) => {
+         if (err) {
+            console.error(`❌ Failed to send tags to ${botId}:`, err);
+            return res.status(500).json({ error: 'Failed to send tags to bot' });
+         }
+
+         console.log(`🏷️ Sent tags to ${botId}:`, tags);
+         res.json({
+            success: true,
+            message: `Tags sent to bot ${botId}`,
+            tags: tags
+         });
+      });
+
+   } catch (error) {
+      console.error('❌ Error setting bot tags:', error);
+      res.status(500).json({ error: 'Failed to set bot tags' });
    }
 });
 

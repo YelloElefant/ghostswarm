@@ -45,6 +45,12 @@ class TorrentDownloader {
       this.metadata = metadata; // Store full metadata including tags
       this.outDir = path.join(PATHS.PIECES_DIR, infoHash);
 
+      //check tags
+      if (!checkTags(this.metadata.tags)) {
+         console.error(`❌ Invalid tags in torrent metadata for ${this.infoHash}`);
+         throw new Error('Invalid tags in torrent metadata');
+      }
+
       // BitTorrent-like peer management
       this.peers = new Map(); // peerId -> peer connection info
       this.activePeerConnections = new Set(); // Currently connected peers
@@ -811,8 +817,13 @@ function handleTorrentDownload(infoHash, payload) {
       console.warn(`⚠️ Torrent ${infoHash} already downloading, skipping...`);
       return;
    }
-
-   const downloader = new TorrentDownloader(infoHash, payload);
+   let downloader;
+   try {
+      downloader = new TorrentDownloader(infoHash, payload);
+   } catch (err) {
+      console.log("skipping torrent download due to invalid metadata:", err.message);
+      return;
+   }
    activeDownloads[infoHash] = downloader;
 
    downloader.start().catch(err => {
@@ -863,6 +874,37 @@ function getDownloadStatus() {
 async function download(torrent, hash, client) {
    mqtt = client;
    handleTorrentDownload(hash, torrent);
+}
+
+function checkTags(tags) {
+   // read and parse tags.json
+   const tagsFilePath = PATHS.TAGS_FILE;
+   let existingTags = [];
+   try {
+      if (fs.existsSync(tagsFilePath)) {
+         const data = fs.readFileSync(tagsFilePath, 'utf8');
+         existingTags = JSON.parse(data);
+      }
+   } catch (err) {
+      console.error(`❌ Failed to read tags file: ${err.message}`);
+   }
+
+   // Check if tags already exist
+   const newTags = tags.filter(tag => {
+      if (typeof tag !== 'string') {
+         console.warn(`⚠️ Invalid tag format, expected string but got ${typeof tag}`);
+         return false;
+      }
+      return !existingTags.includes(tag);
+   });
+
+   // check if at least 1 tag from torrent is in tags list
+   const hasMatchingTag = newTags.some(tag => existingTags.includes(tag));
+   if (!hasMatchingTag) {
+      console.warn(`⚠️ No matching tags found for torrent: ${JSON.stringify(tags)}`);
+      return false;
+   }
+
 }
 
 module.exports = {

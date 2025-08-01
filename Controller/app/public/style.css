@@ -693,3 +693,186 @@ a icon {
       grid-template-columns: 1fr;
    }
 }
+
+/* Controller/app/public/style.css - Add tag management styles */
+
+/* Bot tags display */
+.bot-tags {
+   background: #2a2a2a;
+   padding: 12px;
+   margin: 10px 0;
+   border-radius: 6px;
+   border-left: 4px solid #4a9eff;
+}
+
+.tags-label {
+   font-weight: bold;
+   color: #ccc;
+   margin-right: 8px;
+   font-size: 12px;
+}
+
+.bot-tag {
+   background: #4a9eff;
+   color: #fff;
+   padding: 3px 8px;
+   border-radius: 12px;
+   font-size: 10px;
+   font-weight: bold;
+   text-transform: uppercase;
+   margin: 2px 4px 2px 0;
+   display: inline-block;
+   letter-spacing: 0.5px;
+}
+
+/* Tag form styling */
+.tag-form {
+   background: #2a2a2a;
+   padding: 15px;
+   margin: 10px 0;
+   border-radius: 6px;
+   border: 1px solid #333;
+}
+
+.tag-form label {
+   display: block;
+   margin-bottom: 8px;
+   font-weight: bold;
+   color: #ccc;
+}
+
+.tag-form input[type="text"] {
+   width: 100%;
+   padding: 8px;
+   background: #333;
+   border: 1px solid #555;
+   border-radius: 4px;
+   color: #fff;
+   font-size: 13px;
+   margin-bottom: 10px;
+}
+
+.tag-form input[type="text"]:focus {
+   outline: none;
+   border-color: #4a9eff;
+   box-shadow: 0 0 5px rgba(74, 158, 255, 0.3);
+}
+
+.tag-form button[type="submit"] {
+   background: #4a9eff;
+   border: none;
+   color: #fff;
+   padding: 8px 16px;
+   border-radius: 4px;
+   cursor: pointer;
+   font-weight: bold;
+   width: 100%;
+   margin-bottom: 10px;
+}
+
+.tag-form button[type="submit"]:hover {
+   background: #3a8eef;
+}
+
+/* Tag suggestions */
+.tag-suggestions {
+   margin: 10px 0;
+}
+
+.suggestion-label {
+   font-size: 11px;
+   color: #aaa;
+   margin-right: 8px;
+}
+
+.tag-suggestion {
+   background: #333;
+   border: 1px solid #555;
+   color: #ccc;
+   padding: 4px 8px;
+   border-radius: 12px;
+   font-size: 10px;
+   cursor: pointer;
+   margin: 2px 4px 2px 0;
+   transition: all 0.2s ease;
+}
+
+.tag-suggestion:hover {
+   background: #4a9eff;
+   color: #fff;
+   border-color: #4a9eff;
+}
+
+/* Tag output messages */
+.tag-output {
+   margin-top: 10px;
+   font-size: 12px;
+}
+
+.tag-output .success {
+   color: #28e96a;
+   background: rgba(40, 233, 106, 0.1);
+   padding: 8px;
+   border-radius: 4px;
+   border-left: 3px solid #28e96a;
+}
+
+.tag-output .error {
+   color: #ff4444;
+   background: rgba(255, 68, 68, 0.1);
+   padding: 8px;
+   border-radius: 4px;
+   border-left: 3px solid #ff4444;
+}
+
+.tag-output .info {
+   color: #4a9eff;
+   background: rgba(74, 158, 255, 0.1);
+   padding: 8px;
+   border-radius: 4px;
+   border-left: 3px solid #4a9eff;
+}
+
+/* Enhanced bot info section */
+.bot-info.downloading .bot-tag {
+   background: #ffa500;
+}
+
+.bot-info.dead .bot-tag {
+   background: #666;
+}
+
+/* Specific tag colors */
+.bot-tag.high-speed {
+   background: #ff6b00 !important;
+}
+
+.bot-tag.storage {
+   background: #2ecc71 !important;
+}
+
+.bot-tag.backup {
+   background: #9b59b6 !important;
+}
+
+.bot-tag.priority {
+   background: #e74c3c !important;
+}
+
+.bot-tag.testing {
+   background: #f39c12 !important;
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+   .tag-suggestions {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+   }
+
+   .tag-suggestion {
+      width: 100%;
+      text-align: center;
+   }
+}

@@ -101,6 +101,7 @@ function startHeartbeat(mqtt) {
       const downloads = getDownloadStatus();
       const totalTorrents = getTotalCompletedTorrents();
       const totalFiles = getCompletedFiles();
+      const tags = getTags();
 
       // Calculate download statistics
       const downloadValues = Object.values(downloads);
@@ -129,6 +130,10 @@ function startHeartbeat(mqtt) {
                used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
                total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
             }
+         },
+         metadata: {
+            tags: tags || [],
+            name: config.metadata?.name || "GhostSwarm Bot",
          }
       };
 
@@ -137,4 +142,22 @@ function startHeartbeat(mqtt) {
    }, config.heartbeatIntervalMs);
 }
 
-module.exports = { startHeartbeat };
+function getTags() {
+   const tagsFile = config.PATHS?.TAGS_FILE || './data/tags.json';
+   if (fs.existsSync(tagsFile)) {
+      try {
+         const tagsData = fs.readFileSync(tagsFile, 'utf8');
+         return JSON.parse(tagsData);
+      }
+      catch (err) {
+         console.warn(`⚠️ Could not read tags file: ${err.message}`);
+         return [];
+      }
+   } else {
+      console.warn(`⚠️ Tags file not found: ${tagsFile}`);
+      return [];
+   }
+}
+
+
+module.exports = { startHeartbeat, getTags };

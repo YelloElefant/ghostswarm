@@ -101,6 +101,12 @@ mqttClient.on('message', (topic, message) => {
             console.error(`❌ [${botId}] failed to save peers: ${err.message}`);
          }
       }
+
+      else if (topic.startsWith(`ghostswarm/settag/${botId}`)) {
+         const payload = JSON.parse(message.toString());
+         console.log(`📥 [${botId}] received settag request:`, payload);
+         setTags(payload);
+      }
    } catch (err) {
       console.error(`❌ [${botId}] failed to handle message on topic ${topic}:`, err.message);
       console.error(`❌ [${botId}] message content:`, message.toString());
@@ -479,6 +485,26 @@ function cleanupCorruptedFiles() {
 
    if (cleaned > 0) {
       console.log(`🧹 [${botId}] cleaned up ${cleaned} corrupted swarm files`);
+   }
+}
+
+function setTags(payload) {
+   const tagsFile = config.PATHS.TAGS_FILE;
+   fs.mkdirSync(path.dirname(tagsFile), { recursive: true });
+   try {
+      // Read existing tags
+      let existingTags = {};
+      if (fs.existsSync(tagsFile)) {
+         const data = fs.readFileSync(tagsFile, 'utf8');
+         existingTags = JSON.parse(data);
+      }
+      // Update tags
+      existingTags[payload.infoHash] = payload.tags;
+      // Write
+      fs.writeFileSync(tagsFile, JSON.stringify(existingTags, null, 2));
+      console.log(`📂 [${botId}] updated tags for ${payload.infoHash}`);
+   } catch (err) {
+      console.error(`❌ [${botId}] failed to set tags for ${payload.infoHash}:`, err.message);
    }
 }
 

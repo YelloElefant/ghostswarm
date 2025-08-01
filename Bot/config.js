@@ -34,6 +34,7 @@ module.exports = {
       SWARM_DIR: "/data/swarm",                   // Directory for swarm metadata
       TORRENT_EXTENSION: ".ghostswarm",           // Extension for torrent metadata files
       STATE_DIR: "/data/states",                 // Directory for bot states
+      TAGS_FILE: "/data/tags.json",                // File to store tags for torrents
    },
 
    DOWNLOAD_CONFIG: {
