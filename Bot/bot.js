@@ -488,23 +488,36 @@ function cleanupCorruptedFiles() {
    }
 }
 
+// Bot/bot.js - Fix the setTags function to store bot tags, not torrent tags
 function setTags(payload) {
-   const tagsFile = config.PATHS.TAGS_FILE;
-   fs.mkdirSync(path.dirname(tagsFile), { recursive: true });
    try {
-      // Read existing tags
-      let existingTags = {};
-      if (fs.existsSync(tagsFile)) {
-         const data = fs.readFileSync(tagsFile, 'utf8');
-         existingTags = JSON.parse(data);
+      const { tags } = payload;
+
+      if (!Array.isArray(tags)) {
+         console.error(`❌ [${botId}] Invalid tags format: expected array, got ${typeof tags}`);
+         return;
       }
-      // Update tags
-      existingTags[payload.infoHash] = payload.tags;
-      // Write
-      fs.writeFileSync(tagsFile, JSON.stringify(existingTags, null, 2));
-      console.log(`📂 [${botId}] updated tags for ${payload.infoHash}`);
+
+      const tagsFile = config.PATHS.TAGS_FILE;
+
+      // Ensure directory exists
+      fs.mkdirSync(path.dirname(tagsFile), { recursive: true });
+
+      // Store tags directly as an array (not per infoHash)
+      fs.writeFileSync(tagsFile, JSON.stringify(tags, null, 2));
+
+      console.log(`🏷️ [${botId}] Bot tags updated:`, tags);
+
+      // Send confirmation back via MQTT
+      const statusTopic = `ghostswarm/${botId}/status`;
+      mqttClient.publish(statusTopic, JSON.stringify({
+         status: "tags_updated",
+         tags: tags,
+         time: Date.now()
+      }));
+
    } catch (err) {
-      console.error(`❌ [${botId}] failed to set tags for ${payload.infoHash}:`, err.message);
+      console.error(`❌ [${botId}] failed to set bot tags:`, err.message);
    }
 }
 

@@ -142,19 +142,51 @@ function startHeartbeat(mqtt) {
    }, config.heartbeatIntervalMs);
 }
 
+// Bot/heartbeat/heartbeat.js - Fix getTags to read bot tags correctly
 function getTags() {
-   const tagsFile = config.PATHS?.TAGS_FILE || './data/tags.json';
-   if (fs.existsSync(tagsFile)) {
+   try {
+      const tagsFile = config.PATHS?.TAGS_FILE || path.join(__dirname, '../../data/tags.json');
+
+      if (fs.existsSync(tagsFile)) {
+         const tagsData = fs.readFileSync(tagsFile, 'utf8').trim();
+
+         if (tagsData.length === 0) {
+            console.log(`📝 [${BOTID}] Tags file is empty, returning empty array`);
+            return [];
+         }
+
+         const tags = JSON.parse(tagsData);
+
+         // Ensure we return an array (not an object)
+         if (Array.isArray(tags)) {
+            console.log(`📝 [${BOTID}] Loaded bot tags:`, tags);
+            return tags;
+         } else {
+            console.warn(`⚠️ [${BOTID}] Tags file contains non-array data, resetting to empty array`);
+            // Reset to empty array format
+            fs.writeFileSync(tagsFile, JSON.stringify([], null, 2));
+            return [];
+         }
+
+      } else {
+         // Create empty tags file if it doesn't exist
+         const defaultTags = [];
+         fs.mkdirSync(path.dirname(tagsFile), { recursive: true });
+         fs.writeFileSync(tagsFile, JSON.stringify(defaultTags, null, 2));
+         console.log(`📝 [${BOTID}] Created new tags file: ${tagsFile}`);
+         return defaultTags;
+      }
+   } catch (err) {
+      console.warn(`⚠️ [${BOTID}] Could not read tags file: ${err.message}`);
+      // Reset to empty array on error
       try {
-         const tagsData = fs.readFileSync(tagsFile, 'utf8');
-         return JSON.parse(tagsData);
+         const tagsFile = config.PATHS?.TAGS_FILE || path.join(__dirname, '../../data/tags.json');
+         fs.mkdirSync(path.dirname(tagsFile), { recursive: true });
+         fs.writeFileSync(tagsFile, JSON.stringify([], null, 2));
+         console.log(`🔄 [${BOTID}] Reset tags file to empty array`);
+      } catch (resetErr) {
+         console.error(`❌ [${BOTID}] Could not reset tags file:`, resetErr.message);
       }
-      catch (err) {
-         console.warn(`⚠️ Could not read tags file: ${err.message}`);
-         return [];
-      }
-   } else {
-      console.warn(`⚠️ Tags file not found: ${tagsFile}`);
       return [];
    }
 }
