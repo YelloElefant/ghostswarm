@@ -22,6 +22,7 @@ function startMQTT() {
       client.subscribe(`ghostswarm/${botId}/download/#`);
       client.subscribe(`ghostswarm/torrent/delete/#`);
       client.subscribe(`ghostswarm/peers`);
+      client.subscribe(`ghostswarm/settag/${botId}`);
 
 
    });
