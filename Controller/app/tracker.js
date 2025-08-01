@@ -352,14 +352,14 @@ function handleAnnounceComplete(message) {
       const torrentData = JSON.parse(data);
       const totalPieces = torrentData.pieces.length;
 
-      totalPieces.forEach((pieceIndex) => {
+      for (let pieceIndex = 0; pieceIndex < totalPieces; pieceIndex++) {
          // Update swarm map for each piece
          handleAnnouncePiece({
             infoHash: infoHash,
             pieceIndex: pieceIndex,
             botId: botId
          });
-      });
+      }
    }
    );
 

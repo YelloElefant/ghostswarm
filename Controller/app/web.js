@@ -154,9 +154,9 @@ function handleAnnounceComplete(message) {
       }
 
       const torrentData = JSON.parse(data);
-      const pieces = torrentData.pieces.length;
+      const piecesCount = torrentData.pieces.length;
 
-      pieces.forEach((piece, index) => {
+      for (let index = 0; index < piecesCount; index++) {
          const swarmKey = `swarm:${infoHash}`;
          redis.hset(swarmKey, index.toString(), JSON.stringify([botId]), (err) => {
             if (err) {
@@ -165,7 +165,7 @@ function handleAnnounceComplete(message) {
                console.log(`✅ Updated swarm map for ${infoHash} piece ${index} with bot ${botId}`);
             }
          });
-      });
+      }
    });
 }
 
