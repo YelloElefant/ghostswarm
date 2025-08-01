@@ -20,7 +20,11 @@ function deleteTorrent(hash, mqtt) {
    // delete the files and directories
    fs.rmSync(torrentFile);
    fs.rmSync(uploadsDir + torrentData.name, { recursive: true });
-   fs.rmSync(swarmFile);
+   try {
+      fs.rmSync(swarmFile);
+   } catch (err) {
+      console.warn(`⚠️ Could not delete swarm file ${swarmFile}:`, err.message);
+   }
    console.log(`🗑️ Deleted torrent and associated files for ${hash}`);
 
    // Notify the controller via MQTT
