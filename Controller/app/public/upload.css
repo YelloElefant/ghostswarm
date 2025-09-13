@@ -1,0 +1,217 @@
+body {
+   background: #111;
+   color: #fff;
+   font-family: sans-serif;
+   display: flex;
+   justify-content: center;
+   align-items: center;
+   height: 100vh;
+   margin: 0;
+}
+
+.upload-container {
+   background: #1a1a1a;
+   padding: 2rem;
+   border-radius: 12px;
+   box-shadow: 0 0 10px rgba(40, 233, 106, 0.3);
+   width: 100%;
+   max-width: 480px;
+   text-align: center;
+}
+
+h1 {
+   color: #28e96a;
+   margin-bottom: 1.5rem;
+}
+
+input[type="file"] {
+   background: #333;
+   color: #fff;
+   padding: 10px;
+   border: none;
+   width: 100%;
+   border-radius: 6px;
+   margin-bottom: 1rem;
+}
+
+input[type="file"]::file-selector-button {
+   background: #28e96a;
+   color: #000;
+   border: none;
+   padding: 8px 16px;
+   margin-right: 10px;
+   cursor: pointer;
+   border-radius: 6px;
+}
+
+button {
+   background: #28e96a;
+   color: #000;
+   font-weight: bold;
+   border: none;
+   padding: 10px 24px;
+   border-radius: 6px;
+   cursor: pointer;
+   font-size: 1rem;
+}
+
+#uploadStatus {
+   margin-top: 1.5rem;
+   font-size: 0.9rem;
+   background: #222;
+   padding: 1rem;
+   border-radius: 8px;
+   color: #ccc;
+}
+
+.dropzone {
+   position: relative;
+   border: 2px dashed #28e96a55;
+   border-radius: 12px;
+   padding: 2rem;
+   transition: border-color 0.3s ease;
+}
+
+.dropzone-active::before {
+   content: "Drop file to upload";
+   position: absolute;
+   top: 50%;
+   left: 50%;
+   transform: translate(-50%, -50%);
+   background: rgba(40, 233, 106, 0.15);
+   border: 2px dashed #28e96a;
+   border-radius: 10px;
+   padding: 3rem;
+   font-size: 1.25rem;
+   color: #28e96a;
+   text-align: center;
+   pointer-events: none;
+   z-index: 10;
+}
+
+input[type="file"] {
+   z-index: 1;
+   position: relative;
+}
+
+
+.modal {
+   display: none;
+   position: fixed;
+   z-index: 2000;
+   top: 0;
+   left: 0;
+   width: 100%;
+   height: 100%;
+   background: rgba(17, 17, 17, 0.85);
+   justify-content: center;
+   align-items: center;
+}
+
+.modal-content {
+   background: #1a1a1a;
+   padding: 2rem;
+   border-radius: 12px;
+   width: 100%;
+   max-width: 480px;
+   box-shadow: 0 0 15px #28e96a55;
+   color: white;
+}
+
+.modal-content h2 {
+   margin-top: 0;
+   color: #28e96a;
+}
+
+.modal-content label {
+   display: block;
+   margin-top: 1rem;
+   font-weight: bold;
+}
+
+.modal-content input[type="text"],
+.modal-content select {
+   width: 100%;
+   padding: 0.6rem;
+   background: #333;
+   color: white;
+   border: none;
+   border-radius: 6px;
+   margin-top: 0.5rem;
+}
+
+.modal-content input[type="checkbox"] {
+   margin-right: 0.5rem;
+}
+
+.button-row {
+   display: flex;
+   justify-content: space-between;
+   margin-top: 1.5rem;
+}
+
+.button-row button {
+   background: #28e96a;
+   border: none;
+   color: black;
+   font-weight: bold;
+   padding: 10px 20px;
+   border-radius: 6px;
+   cursor: pointer;
+}
+
+#tagInputWrapper {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 6px;
+   background: #222;
+   padding: 8px;
+   border-radius: 8px;
+   margin-top: 0.5rem;
+}
+
+#tagList {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 6px;
+}
+
+.tag {
+   background: #444;
+   color: #ccc;
+   padding: 5px 10px;
+   border-radius: 500px;
+   font-size: 0.85rem;
+   display: flex;
+   align-items: center;
+   gap: 6px;
+}
+
+.tag .remove-tag {
+   color: #888;
+   cursor: pointer;
+   font-weight: bold;
+}
+
+#tagInput {
+   background: transparent;
+   border: none;
+   color: white;
+   flex-grow: 1;
+   min-width: 120px;
+   padding: 4px;
+   outline: none;
+}
+
+#previewList {
+   list-style: none;
+   padding-left: 0;
+   font-size: 0.9rem;
+   background: #222;
+   padding: 1rem;
+   border-radius: 8px;
+}
+
+#previewList li {
+   margin-bottom: 0.5rem;
+}

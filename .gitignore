@@ -1,3 +1,8 @@
 Controller/db
 **/node_modules
 **/package-lock.json
+**/uploads
+**/torrents
+**/pieces
+**/swarm
+**/data

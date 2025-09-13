@@ -1,0 +1,878 @@
+* {
+   color: white;
+   box-sizing: border-box;
+}
+
+body {
+   font-family: sans-serif;
+   padding: 1rem;
+   margin: 0;
+   background: #111;
+   overflow: hidden;
+}
+
+input,
+button {
+   margin: 0.5rem;
+}
+
+#graphWrapper {
+   width: 100%;
+   height: 100vh;
+}
+
+#swarmGraph {
+   width: 100%;
+   height: 100%;
+}
+
+
+.node circle {
+   stroke: #fff;
+   stroke-width: 1.5px;
+}
+
+.node text {
+   fill: white;
+   font-size: 12px;
+   pointer-events: none;
+   text-anchor: middle;
+   alignment-baseline: middle;
+}
+
+.link {
+   stroke: #666;
+   stroke-opacity: 0.6;
+}
+
+.alive {
+   fill: #28e96a;
+   animation: pulse 1.2s infinite;
+}
+
+.dead {
+   fill: #444;
+}
+
+.downloading {
+   fill: #ffa500;
+   animation: download-pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+   0% {
+      r: 8;
+   }
+
+   50% {
+      r: 11;
+   }
+
+   100% {
+      r: 8;
+   }
+}
+
+@keyframes download-pulse {
+   0% {
+      fill: #ffa500;
+   }
+
+   50% {
+      fill: #ff6b00;
+   }
+
+   100% {
+      fill: #ffa500;
+   }
+}
+
+circle.selected {
+   stroke: #fffb00;
+   stroke-width: 3px;
+}
+
+#sidePanel {
+   position: fixed;
+   top: 0;
+   right: -500px;
+   width: 500px;
+   height: 100%;
+   background: #1a1a1a;
+   color: #fff;
+   padding: 20px;
+   box-shadow: -2px 0 8px rgba(0, 0, 0, 0.4);
+   transition: right 0.3s ease;
+   z-index: 1000;
+   overflow-y: auto;
+}
+
+#sidePanel.open {
+   right: 0;
+}
+
+#sidePanel h2 {
+   margin-top: 0;
+   color: #28e96a;
+}
+
+#sidePanel h3 {
+   color: #ffa500;
+   margin-top: 20px;
+   margin-bottom: 10px;
+}
+
+#sidePanel label {
+   display: block;
+   margin-top: 15px;
+   font-weight: bold;
+}
+
+#sidePanel input {
+   width: 100%;
+   padding: 6px;
+   margin-top: 5px;
+   background: #333;
+   border: none;
+   color: #fff;
+}
+
+#sidePanel button {
+   margin-top: 20px;
+   padding: 10px 20px;
+   background: #28e96a;
+   border: none;
+   color: #000;
+   font-weight: bold;
+   cursor: pointer;
+   border-radius: 4px;
+}
+
+#sidePanel button:hover {
+   background: #20b855;
+}
+
+#sidePanel pre {
+   margin-top: 20px;
+   font-size: 12px;
+   background: #222;
+   padding: 10px;
+   white-space: pre-wrap;
+   border-radius: 4px;
+}
+
+.bot-info {
+   background: #2a2a2a;
+   padding: 15px;
+   margin: 10px 0;
+   border-radius: 8px;
+   border-left: 4px solid #28e96a;
+}
+
+.bot-info.dead {
+   border-left-color: #444;
+}
+
+.bot-info.downloading {
+   border-left-color: #ffa500;
+}
+
+.status-grid {
+   display: grid;
+   grid-template-columns: 1fr 1fr;
+   gap: 10px;
+   margin: 10px 0;
+}
+
+.status-item {
+   background: #333;
+   padding: 8px;
+   border-radius: 4px;
+   text-align: center;
+}
+
+.status-item .label {
+   font-size: 11px;
+   color: #aaa;
+   display: block;
+}
+
+.status-item .value {
+   font-size: 16px;
+   font-weight: bold;
+   color: #28e96a;
+}
+
+.download-list {
+   max-height: 300px;
+   overflow-y: auto;
+}
+
+.download-header {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   margin-bottom: 8px;
+}
+
+.download-name {
+   font-weight: bold;
+   flex: 1;
+}
+
+.download-size {
+   font-size: 12px;
+   color: #aaa;
+   margin-left: 10px;
+}
+
+.download-tags {
+   margin: 8px 0;
+   display: flex;
+   flex-wrap: wrap;
+   gap: 4px;
+}
+
+.tag {
+   background: #4a9eff;
+   color: #fff;
+   padding: 2px 6px;
+   border-radius: 12px;
+   font-size: 10px;
+   font-weight: bold;
+   text-transform: uppercase;
+}
+
+.download-item.completed .tag {
+   background: #28e96a;
+}
+
+.download-item.downloading .tag {
+   background: #ffa500;
+}
+
+.download-item.stalled .tag {
+   background: #ff9500;
+}
+
+.download-item.error .tag {
+   background: #ff4444;
+}
+
+.download-stats {
+   font-size: 11px;
+   color: #aaa;
+   margin-top: 5px;
+}
+
+.download-created {
+   font-size: 10px;
+   color: #666;
+   margin-top: 3px;
+   font-style: italic;
+}
+
+/* Enhanced download item layout */
+.download-item {
+   background: #333;
+   padding: 12px;
+   margin: 8px 0;
+   border-radius: 6px;
+   border-left: 3px solid #ffa500;
+   transition: all 0.3s ease;
+}
+
+.download-item:hover {
+   background: #3a3a3a;
+}
+
+/* Tag color variations for different categories */
+.tag.movie {
+   background: #e74c3c;
+}
+
+.tag.tv {
+   background: #9b59b6;
+}
+
+.tag.music {
+   background: #f39c12;
+}
+
+.tag.software {
+   background: #2ecc71;
+}
+
+.tag.game {
+   background: #3498db;
+}
+
+.tag.book {
+   background: #34495e;
+}
+
+.tag.hd {
+   background: #e67e22;
+}
+
+.tag.cam {
+   background: #95a5a6;
+}
+
+/* Responsive tags */
+@media (max-width: 600px) {
+   .download-header {
+      flex-direction: column;
+      align-items: flex-start;
+   }
+
+   .download-size {
+      margin-left: 0;
+      margin-top: 4px;
+   }
+}
+
+#rightSidePanel {
+   position: fixed;
+   top: 0;
+   left: 0px;
+   width: 100px;
+   height: 100%;
+   background: #1a1a1a;
+   color: #fff;
+   padding: 20px;
+   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.4);
+   z-index: 1000;
+   overflow-y: auto;
+   display: flex;
+   flex-direction: column;
+}
+
+#rightSidePanel a {
+   display: flex;
+   justify-content: center;
+   align-items: center;
+   height: 60px;
+   border: #333 1px solid;
+   border-radius: 50%;
+   margin-bottom: 10px;
+   text-decoration: none;
+   transition: background 0.3s ease;
+}
+
+#rightSidePanel a:hover {
+   background: #333;
+}
+
+a icon {
+   color: #28e96a;
+   text-decoration: none;
+   font-size: 24px;
+   text-align: center;
+}
+
+.close-panel {
+   position: absolute;
+   top: 10px;
+   right: 15px;
+   background: none;
+   border: none;
+   color: #aaa;
+   font-size: 24px;
+   cursor: pointer;
+   padding: 0;
+   margin: 0;
+}
+
+.close-panel:hover {
+   color: #fff;
+}
+
+
+/* Controller/app/public/style.css - Add/Update these styles */
+
+/* Download list container */
+.download-list {
+   max-height: 300px;
+   overflow-y: auto;
+   margin: 10px 0;
+}
+
+/* Download item container - Update existing rule */
+.download-item {
+   background: #333;
+   padding: 10px;
+   margin: 6px 0;
+   border-radius: 4px;
+   border-left: 3px solid #ffa500;
+   transition: all 0.3s ease;
+}
+
+.download-item:hover {
+   background: #3a3a3a;
+}
+
+/* Status-based border colors */
+.download-item.completed {
+   border-left-color: #28e96a;
+}
+
+.download-item.downloading {
+   border-left-color: #ffa500;
+   animation: download-border-pulse 2s infinite;
+}
+
+.download-item.stalled {
+   border-left-color: #ff9500;
+}
+
+.download-item.error {
+   border-left-color: #ff4444;
+}
+
+/* Download header - Update existing rule */
+.download-header {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   margin-bottom: 5px;
+}
+
+.download-name {
+   font-weight: bold;
+   font-size: 13px;
+   color: #fff;
+   flex: 1;
+   overflow: hidden;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+}
+
+.download-size {
+   font-size: 10px;
+   color: #aaa;
+   margin-left: 10px;
+   white-space: nowrap;
+}
+
+/* Tags - Update existing rule */
+.download-tags {
+   margin: 4px 0;
+   display: flex;
+   flex-wrap: wrap;
+   gap: 3px;
+}
+
+.tag {
+   background: #4a9eff;
+   color: #fff;
+   padding: 1px 5px;
+   border-radius: 8px;
+   font-size: 8px;
+   font-weight: bold;
+   text-transform: uppercase;
+   letter-spacing: 0.3px;
+}
+
+/* Progress bar - Add missing styles */
+.progress-bar {
+   width: 100%;
+   height: 4px;
+   background: #555;
+   border-radius: 2px;
+   margin: 4px 0;
+   overflow: hidden;
+}
+
+.progress-fill {
+   height: 100%;
+   background: linear-gradient(90deg, #28e96a, #20b855);
+   transition: width 0.3s ease;
+   border-radius: 2px;
+}
+
+/* Progress fill colors based on status */
+.download-item.downloading .progress-fill {
+   background: linear-gradient(90deg, #ffa500, #ff6b00);
+   animation: progress-shimmer 2s infinite;
+}
+
+.download-item.stalled .progress-fill {
+   background: #ff9500;
+}
+
+.download-item.completed .progress-fill {
+   background: #28e96a;
+}
+
+.download-item.error .progress-fill {
+   background: #ff4444;
+}
+
+/* Download progress text - Add missing styles */
+.download-progress {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   font-size: 10px;
+   color: #ccc;
+   margin: 3px 0;
+}
+
+/* Download stats - Update existing rule */
+.download-stats {
+   font-size: 9px;
+   color: #888;
+   margin-top: 3px;
+}
+
+/* Download created - Update existing rule */
+.download-created {
+   font-size: 8px;
+   color: #666;
+   margin-top: 2px;
+   font-style: italic;
+}
+
+/* Tag colors based on download status - Update existing rules */
+.download-item.completed .tag {
+   background: #28e96a;
+}
+
+.download-item.downloading .tag {
+   background: #ffa500;
+}
+
+.download-item.stalled .tag {
+   background: #ff9500;
+}
+
+.download-item.error .tag {
+   background: #ff4444;
+}
+
+/* Tag category colors - Update existing rules with !important */
+.tag.movie {
+   background: #e74c3c !important;
+}
+
+.tag.tv {
+   background: #9b59b6 !important;
+}
+
+.tag.music {
+   background: #f39c12 !important;
+}
+
+.tag.software {
+   background: #2ecc71 !important;
+}
+
+.tag.game {
+   background: #3498db !important;
+}
+
+.tag.book {
+   background: #34495e !important;
+}
+
+.tag.hd {
+   background: #e67e22 !important;
+}
+
+.tag.cam {
+   background: #95a5a6 !important;
+}
+
+.tag.\4k {
+   background: #8e44ad !important;
+}
+
+/* Animations */
+@keyframes download-border-pulse {
+   0% {
+      border-left-color: #ffa500;
+   }
+
+   50% {
+      border-left-color: #ff6b00;
+   }
+
+   100% {
+      border-left-color: #ffa500;
+   }
+}
+
+@keyframes progress-shimmer {
+   0% {
+      background: linear-gradient(90deg, #ffa500, #ff6b00);
+      background-position: -200px 0;
+   }
+
+   100% {
+      background: linear-gradient(90deg, #ffa500, #ff6b00);
+      background-position: 200px 0;
+   }
+}
+
+/* System Information Grid */
+.system-info {
+   background: #2a2a2a;
+   padding: 12px;
+   margin: 10px 0;
+   border-radius: 6px;
+   border-left: 4px solid #4a9eff;
+}
+
+.system-grid {
+   display: grid;
+   grid-template-columns: 1fr 1fr;
+   gap: 8px;
+   margin: 8px 0;
+}
+
+.system-item {
+   background: #333;
+   padding: 6px;
+   border-radius: 3px;
+   text-align: center;
+}
+
+.system-item .label {
+   font-size: 9px;
+   color: #aaa;
+   display: block;
+}
+
+.system-item .value {
+   font-size: 12px;
+   font-weight: bold;
+   color: #4a9eff;
+}
+
+/* Side panel scrolling */
+#sidePanel::-webkit-scrollbar {
+   width: 6px;
+}
+
+#sidePanel::-webkit-scrollbar-track {
+   background: #1a1a1a;
+}
+
+#sidePanel::-webkit-scrollbar-thumb {
+   background: #444;
+   border-radius: 3px;
+}
+
+#sidePanel::-webkit-scrollbar-thumb:hover {
+   background: #666;
+}
+
+/* Responsive design - Update existing rule */
+@media (max-width: 600px) {
+   .download-header {
+      flex-direction: column;
+      align-items: flex-start;
+   }
+
+   .download-size {
+      margin-left: 0;
+      margin-top: 2px;
+   }
+
+   .download-progress {
+      flex-direction: column;
+      gap: 2px;
+   }
+
+   .status-grid {
+      grid-template-columns: 1fr;
+   }
+
+   .system-grid {
+      grid-template-columns: 1fr;
+   }
+}
+
+/* Controller/app/public/style.css - Add tag management styles */
+
+/* Bot tags display */
+.bot-tags {
+   background: #2a2a2a;
+   padding: 12px;
+   margin: 10px 0;
+   border-radius: 6px;
+   border-left: 4px solid #4a9eff;
+}
+
+.tags-label {
+   font-weight: bold;
+   color: #ccc;
+   margin-right: 8px;
+   font-size: 12px;
+}
+
+.bot-tag {
+   background: #4a9eff;
+   color: #fff;
+   padding: 3px 8px;
+   border-radius: 12px;
+   font-size: 10px;
+   font-weight: bold;
+   text-transform: uppercase;
+   margin: 2px 4px 2px 0;
+   display: inline-block;
+   letter-spacing: 0.5px;
+}
+
+/* Tag form styling */
+.tag-form {
+   background: #2a2a2a;
+   padding: 15px;
+   margin: 10px 0;
+   border-radius: 6px;
+   border: 1px solid #333;
+}
+
+.tag-form label {
+   display: block;
+   margin-bottom: 8px;
+   font-weight: bold;
+   color: #ccc;
+}
+
+.tag-form input[type="text"] {
+   width: 100%;
+   padding: 8px;
+   background: #333;
+   border: 1px solid #555;
+   border-radius: 4px;
+   color: #fff;
+   font-size: 13px;
+   margin-bottom: 10px;
+}
+
+.tag-form input[type="text"]:focus {
+   outline: none;
+   border-color: #4a9eff;
+   box-shadow: 0 0 5px rgba(74, 158, 255, 0.3);
+}
+
+.tag-form button[type="submit"] {
+   background: #4a9eff;
+   border: none;
+   color: #fff;
+   padding: 8px 16px;
+   border-radius: 4px;
+   cursor: pointer;
+   font-weight: bold;
+   width: 100%;
+   margin-bottom: 10px;
+}
+
+.tag-form button[type="submit"]:hover {
+   background: #3a8eef;
+}
+
+/* Tag suggestions */
+.tag-suggestions {
+   margin: 10px 0;
+}
+
+.suggestion-label {
+   font-size: 11px;
+   color: #aaa;
+   margin-right: 8px;
+}
+
+.tag-suggestion {
+   background: #333;
+   border: 1px solid #555;
+   color: #ccc;
+   padding: 4px 8px;
+   border-radius: 12px;
+   font-size: 10px;
+   cursor: pointer;
+   margin: 2px 4px 2px 0;
+   transition: all 0.2s ease;
+}
+
+.tag-suggestion:hover {
+   background: #4a9eff;
+   color: #fff;
+   border-color: #4a9eff;
+}
+
+/* Tag output messages */
+.tag-output {
+   margin-top: 10px;
+   font-size: 12px;
+}
+
+.tag-output .success {
+   color: #28e96a;
+   background: rgba(40, 233, 106, 0.1);
+   padding: 8px;
+   border-radius: 4px;
+   border-left: 3px solid #28e96a;
+}
+
+.tag-output .error {
+   color: #ff4444;
+   background: rgba(255, 68, 68, 0.1);
+   padding: 8px;
+   border-radius: 4px;
+   border-left: 3px solid #ff4444;
+}
+
+.tag-output .info {
+   color: #4a9eff;
+   background: rgba(74, 158, 255, 0.1);
+   padding: 8px;
+   border-radius: 4px;
+   border-left: 3px solid #4a9eff;
+}
+
+/* Enhanced bot info section */
+.bot-info.downloading .bot-tag {
+   background: #ffa500;
+}
+
+.bot-info.dead .bot-tag {
+   background: #666;
+}
+
+/* Specific tag colors */
+.bot-tag.high-speed {
+   background: #ff6b00 !important;
+}
+
+.bot-tag.storage {
+   background: #2ecc71 !important;
+}
+
+.bot-tag.backup {
+   background: #9b59b6 !important;
+}
+
+.bot-tag.priority {
+   background: #e74c3c !important;
+}
+
+.bot-tag.testing {
+   background: #f39c12 !important;
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+   .tag-suggestions {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+   }
+
+   .tag-suggestion {
+      width: 100%;
+      text-align: center;
+   }
+}
