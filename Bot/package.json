@@ -1,11 +1,27 @@
 {
-   "name": "ghostswarm-bot",
-   "version": "1.0.0",
-   "main": "bot.js",
-   "dependencies": {
-      "mqtt": "^5.4.0",
-      "child_process": "^1.0.2",
-      "express": "^4.18.2",
-      "p-limit": "^3.1.0"
-   }
+    "name": "ghostswarm-bot",
+    "version": "0.1.0",
+    "description": "Decentralized mesh networking bot for GhostSwarm v2",
+    "main": "bot.js",
+    "scripts": {
+        "start": "node bot.js",
+        "dev": "node bot.js --port 6666 --data-dir ./data",
+        "start:bootstrap": "node bot.js --port 6667 --http 8081 --data-dir ./data-node2",
+        "test": "node test/basic-test.js"
+    },
+    "keywords": [
+        "p2p",
+        "mesh",
+        "torrent",
+        "decentralized",
+        "networking"
+    ],
+    "dependencies": {
+        "express": "^4.18.2"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    },
+    "author": "GhostSwarm",
+    "license": "MIT"
 }

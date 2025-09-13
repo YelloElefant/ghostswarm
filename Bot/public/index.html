@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>GhostSwarm Bot</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <h1 id="title">🐘 GhostSwarm Bot</h1>
+    <p class="muted" id="subtitle"></p>
+
+    <div class="grid">
+        <div class="card">
+            <h3>Peers</h3>
+            <table id="peers">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>RTT</th>
+                        <th>Inflight</th>
+                        <th>Win</th>
+                        <th>Last Seen</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Known Targets</h3>
+            <div class="row">
+                <input id="hp" placeholder="100.64.0.10:5001">
+                <button onclick="addTarget()">Add & Dial</button>
+            </div>
+            <ul id="targets"></ul>
+        </div>
+
+        <div class="card">
+            <h3>Send BLAST</h3>
+            <div class="row">
+                <input id="topic" placeholder="topic" value="chat">
+                <input id="data" placeholder="message">
+                <button onclick="sendBlast()">Send</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Send DM</h3>
+            <div class="row">
+                <input id="to" placeholder="to (bot id)">
+                <input id="op" placeholder="op" value="getStatus">
+                <input id="ttl" type="number" value="8" min="1" max="16">
+            </div>
+            <div class="row" style="margin-top:8px;">
+                <textarea id="json" rows="4" style="width:100%;" placeholder='{"foo":1}'></textarea>
+            </div>
+            <div class="row" style="margin-top:8px;">
+                <button onclick="sendDM()">Send</button>
+            </div>
+            <pre id="dmResult" class="muted"></pre>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
