@@ -3,11 +3,23 @@
 
 <head>
     <meta charset="utf-8">
-    <title>GhostSwarm Bot</title>
+    <title>GhostSwarm Bot • Dashboard</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <link rel="stylesheet" href="styles.css">
+    <!-- Optional: D3 for the mini graph -->
+    <script src="https://unpkg.com/d3@7"></script>
 </head>
 
 <body>
+    <div id="rightSidePanel">
+        <a href="#" id="openPanelBtn" title="Open panel">
+            <icon>☰</icon>
+        </a>
+        <a href="#" id="refreshBtn" title="Refresh">
+            <icon>↻</icon>
+        </a>
+    </div>
+
     <h1 id="title">🐘 GhostSwarm Bot</h1>
     <p class="muted" id="subtitle"></p>
 
@@ -33,7 +45,7 @@
             <h3>Known Targets</h3>
             <div class="row">
                 <input id="hp" placeholder="100.64.0.10:5001">
-                <button onclick="addTarget()">Add & Dial</button>
+                <button id="addTargetBtn">Add & Dial</button>
             </div>
             <ul id="targets"></ul>
         </div>
@@ -43,7 +55,7 @@
             <div class="row">
                 <input id="topic" placeholder="topic" value="chat">
                 <input id="data" placeholder="message">
-                <button onclick="sendBlast()">Send</button>
+                <button id="sendBlastBtn">Send</button>
             </div>
         </div>
 
@@ -58,9 +70,70 @@
                 <textarea id="json" rows="4" style="width:100%;" placeholder='{"foo":1}'></textarea>
             </div>
             <div class="row" style="margin-top:8px;">
-                <button onclick="sendDM()">Send</button>
+                <button id="sendDmBtn">Send</button>
             </div>
             <pre id="dmResult" class="muted"></pre>
+        </div>
+
+        <div class="card" style="grid-column: 1 / -1;">
+            <h3>Swarm Graph</h3>
+            <div id="graphWrapper">
+                <svg id="swarmGraph"></svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right slide-out panel -->
+    <div id="sidePanel">
+        <button class="close-panel" id="closePanelBtn" title="Close">×</button>
+        <h2>Peer Details</h2>
+        <div id="peerDetail" class="bot-info">
+            <div class="status-grid">
+                <div class="status-item">
+                    <span class="label">Peer ID</span>
+                    <span class="value" id="detailId">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">RTT</span>
+                    <span class="value" id="detailRtt">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Inflight</span>
+                    <span class="value" id="detailInflight">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Win</span>
+                    <span class="value" id="detailWin">-</span>
+                </div>
+            </div>
+
+            <h3>Controls</h3>
+            <div class="row">
+                <button id="detailChill8">CHILL 8</button>
+                <button id="detailChill64">CHILL 64</button>
+                <button id="detailDrop" class="secondary">Drop</button>
+            </div>
+
+            <h3>Quick DM</h3>
+            <label>Operation</label>
+            <input id="detailOp" value="getStatus">
+            <label>TTL</label>
+            <input id="detailTtl" type="number" value="8" min="1" max="16">
+            <label>Data (JSON)</label>
+            <textarea id="detailJson" rows="4" placeholder='{"ping":true}'></textarea>
+            <button id="detailSendDm">Send DM</button>
+            <pre id="detailDmResult" class="muted"></pre>
+        </div>
+    </div>
+
+    <!-- Optional modal example (for future uploads / tag UI) -->
+    <div class="modal" id="genericModal">
+        <div class="modal-content">
+            <h2>Modal</h2>
+            <p>Put anything here.</p>
+            <div class="button-row">
+                <button id="modalClose">Close</button>
+            </div>
         </div>
     </div>
 
