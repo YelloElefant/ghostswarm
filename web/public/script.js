@@ -42,9 +42,9 @@ window.addEventListener("DOMContentLoaded", function() {
 });
 
 function setTitle(s) {
-    const title = document.getElementById("title");
+    const title = document.getElementById("botId");
     if (!title) return;
-    title.textContent = `🐘 Bot (${s.id})`;
+    title.textContent = s.id;
 }
 
 // Fetch /api/status and update UI

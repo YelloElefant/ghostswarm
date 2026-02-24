@@ -6,14 +6,34 @@
     <title>GhostSwarm Bot • Dashboard</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <link rel="stylesheet" href="styles.css">
-    <!-- Optional: D3 for the mini graph -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://unpkg.com/d3@7"></script>
 </head>
+<!-- 🐘 -->
 
-<body>
-    <h1 id="title">🐘 GhostSwarm Bot</h1>
+<body class="matrix-bg">
+    <header>
+        <div id="title">
+            <div id="icon">
+                <i class="material-icons" id="network-icon">hub</i>
+            </div>
+            <span id="ghostswarm">Ghost_Swarm</span>
+        </div>
+        <div id="botBadge">
+            <div>
+                <svg width="12" height="12">
+                    <circle cx="6" cy="6" r="5" fill="#4caf50" />
+                </svg>
+            </div>
+            <div id="botStatus">
+                CONNECTED:
+            </div>
+            <div id="botId"></div>
+        </div>
+    </header>
     <p class="muted" id="subtitle"></p>
 
+    <!--
     <div class="grid">
         <div class="card">
             <h3>Peers</h3>
@@ -61,49 +81,7 @@
             </div>
         </div>
     </div>
-
-    <!-- Right slide-out panel -->
-    <div id="sidePanel">
-        <button class="close-panel" id="closePanelBtn" title="Close">×</button>
-        <h2>Peer Details</h2>
-        <div id="peerDetail" class="bot-info">
-            <div class="status-grid">
-                <div class="status-item">
-                    <span class="label">Peer ID</span>
-                    <span class="value" id="detailId">-</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">RTT</span>
-                    <span class="value" id="detailRtt">-</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Inflight</span>
-                    <span class="value" id="detailInflight">-</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Win</span>
-                    <span class="value" id="detailWin">-</span>
-                </div>
-            </div>
-
-            <h3>Controls</h3>
-            <div class="row">
-                <button id="detailChill8">CHILL 8</button>
-                <button id="detailChill64">CHILL 64</button>
-                <button id="detailDrop" class="secondary">Drop</button>
-            </div>
-
-            <h3>Quick DM</h3>
-            <label>Operation</label>
-            <input id="detailOp" value="getStatus">
-            <label>TTL</label>
-            <input id="detailTtl" type="number" value="8" min="1" max="16">
-            <label>Data (JSON)</label>
-            <textarea id="detailJson" rows="4" placeholder='{"ping":true}'></textarea>
-            <button id="detailSendDm">Send DM</button>
-            <pre id="detailDmResult" class="muted"></pre>
-        </div>
-    </div>
+    -->
 
     <script src="lib.js"></script>
     <script src="script.js"></script>
