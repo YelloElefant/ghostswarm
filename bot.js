@@ -26,13 +26,13 @@ mesh.listen(config.TCP_PORT);
 
 // Graceful shutdown
 process.on("SIGTERM", () => {
-    logger.log("SIGTERM - shutting down");
+    console.log("SIGTERM - shutting down");
     mesh.stop();
     process.exit(0);
 });
 
 process.on("SIGINT", () => {
-    logger.log("SIGINT - shutting down");
+    console.log("SIGINT - shutting down");
     mesh.stop();
     process.exit(0);
 });
