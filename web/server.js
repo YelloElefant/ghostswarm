@@ -29,24 +29,24 @@ class SERVER {
                 return res.status(400).json({ error: "peer not found" });
             }
 
-            const dm = this.gstp.mkDM(to, "message", { text: msg }, 8);            
-            const p = new Promise((resolve) => {
-                this.state.addPending(msg.id, { resolve });
+            const packet = this.gstp.mkDM(to, "message", { text: msg }, 8);
 
-                
-                const timeout = setTimeout(() => {
-                    if (this.state.getPending(msg.id)) {
-                        this.state.removePending(msg.id);
-                        resolve({ timeout: true });
+            let timeoutHandle = null;
+            const p = new Promise((resolve) => {
+                timeoutHandle = setTimeout(() => {
+                    if (this.state.getPending(packet.id)) {
+                        this.state.removePending(packet.id);
+                        console.log("DM timed out:", packet.id);
+                        resolve({ timeout: true, error: "No response" });
                     }
-                    // this.state.decrementInflight(msg.id, 1);
                 }, timeoutMs);
+                
+                this.state.addPending(packet.id, { resolve, timeoutHandle });
             });
 
-            const packet = this.gstp.mkDM(to, "message", { text: msg }, 8);
             this.state.markSeen(packet.id);
             conn.send(packet);
-
+            console.log("Sent DM to", to, "with id", packet.id);
 
             const reply = await p;
             res.json({ ok: true, reply });

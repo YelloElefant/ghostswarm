@@ -30,17 +30,10 @@ window.addEventListener("DOMContentLoaded", function() {
             q("/api/dm", {
                 method: "POST",
                 body: JSON.stringify({ to, msg })
-            }).then(function(response) {
-                if (response.ok) {
-                    alert("Message sent!");
-                    document.getElementById("json").value = "";
-                } else {
-                    alert("Failed to send message: " + (response.error || "unknown error"));
-                }
-            }).catch(function(error) {
-                console.error("Error sending DM:", error);
-                alert("Error sending message: " + error.message);
-            });
+            }).then((res) => {
+                console.log("DM response:", res);
+            })
+            
         });
     }
 });

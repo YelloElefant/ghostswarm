@@ -10,7 +10,6 @@ class conn {
         this.lastSeen = gstp.now();
         this.rtt = null;
         this.queue = [];
-        
 
         // Attach event handlers
         socket.on("data", this.makeDecoder(this.onMsg.bind(this)));
@@ -70,7 +69,7 @@ class conn {
     }
 
     onError(err) {
-        this.logger.debug(`Connection error: ${err.message}`);
+        console.error(`Connection error (${this.remoteId}): ${err.message}`);
     }
 
     onMsg(msg) {
@@ -126,21 +125,40 @@ class conn {
 
         // DM - Direct message
         if (msg && msg.t === T.DM) {
-            if (msg.src && body.to === this.state.botId) {
-                console.log(`Received DM from ${msg.src}: ${JSON.stringify(body.data)}`);
-                this.send(this.gstp.mkMD(msg.id, { text: "Received your DM loud and clear!" }));
+            console.log(`[DM] Received from ${msg.src}, to=${msg.body?.to}, local bot=${this.state.botId}`);
+            if (msg.src && msg.body?.to === this.state.botId) {
+                console.log(`[DM] Processing locally, sending MD response for id=${msg.id}`);
+                const response = this.gstp.mkMD(msg.id, { text: "Received your DM loud and clear!" });
+                console.log(`[DM] Response packet:`, response);
+                this.send(response);
+            } else {
+                console.log(`[DM] Not for us or invalid, skipping`);
             }
-
             return;
         }
 
         if (msg && msg.t === T.MD) {
+            console.log(`[MD] Received response for msg id=${msg.rid}`);
             const waiter = this.state.getPending(msg.rid);
+            console.log(`[MD] Waiter lookup result:`, waiter ? "found" : "not found");
             if (waiter) {
-                waiter.resolve(msg);
+                console.log(`[MD] Resolving promise for ${msg.rid}`);
+                // The timeout handle might be on waiter.timeoutHandle or waiter.resolve.timeoutHandle depending on state structure
+                const timeoutHandle = waiter.timeoutHandle || (waiter.resolve && waiter.resolve.timeoutHandle);
+                if (timeoutHandle) {
+                    console.log(`[MD] Clearing timeout for ${msg.rid}`);
+                    clearTimeout(timeoutHandle);
+                } else {
+                    console.log(`[MD] WARNING: No timeout handle found`);
+                }
+                const resolveFn = typeof waiter.resolve === 'function' ? waiter.resolve : waiter.resolve?.resolve;
+                if (resolveFn) {
+                    resolveFn(msg);
+                }
                 this.state.removePending(msg.rid);
+            } else {
+                console.log(`[MD] No waiter found for ${msg.rid}, pending keys:`, Array.from(this.state.pending?.keys?.() || []));
             }
-
             return;
         }
 
