@@ -12,7 +12,7 @@ const StateManager = require("./core/StateManager");
 const GSTP = require("./utils/GSTP");
 const Logger = require("./core/Logger");
 const MeshManager = require("./mesh/MeshManager");
-const ApiServer = require("./api/ApiServer");
+const app = require("./web/server"); 
 
 // Initialize
 const logger = new Logger(config.BOT_ID);
@@ -34,7 +34,6 @@ for (const hp of config.SEED_PEERS) {
 
 // Create mesh and API
 const mesh = new MeshManager(config, state, gstp, logger);
-const api = new ApiServer(config, state, gstp, mesh, logger);
 
 // Start listeners
 mesh.listen(config.TCP_PORT);
