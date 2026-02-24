@@ -30,16 +30,7 @@
         </div>
 
         <div class="card">
-            <h3>Known Targets</h3>
-            <div class="row">
-                <input id="hp" placeholder="100.64.0.10:5001">
-                <button id="addTargetBtn">Add & Dial</button>
-            </div>
-            <ul id="targets"></ul>
-        </div>
-
-        <div class="card">
-            <h3>Send BLAST</h3>
+            <h3>Send BROADCAST</h3>
             <div class="row">
                 <input id="topic" placeholder="topic" value="chat">
                 <input id="data" placeholder="message">
@@ -63,7 +54,7 @@
             <pre id="dmResult" class="muted"></pre>
         </div>
 
-        <div class="card" style="grid-column: 1 / -1;">
+        <div class="card">
             <h3>Swarm Graph</h3>
             <div id="graphWrapper">
                 <svg id="swarmGraph"></svg>
@@ -111,17 +102,6 @@
             <textarea id="detailJson" rows="4" placeholder='{"ping":true}'></textarea>
             <button id="detailSendDm">Send DM</button>
             <pre id="detailDmResult" class="muted"></pre>
-        </div>
-    </div>
-
-    <!-- Optional modal example (for future uploads / tag UI) -->
-    <div class="modal" id="genericModal">
-        <div class="modal-content">
-            <h2>Modal</h2>
-            <p>Put anything here.</p>
-            <div class="button-row">
-                <button id="modalClose">Close</button>
-            </div>
         </div>
     </div>
 

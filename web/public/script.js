@@ -9,8 +9,10 @@ function q(path, opts) {
     });
 }
 
-var lastStatus = null;
-var selectedPeerId = null;
+let lastStatus = null;
+let selectedPeerId = null;
+let peersMap = [];
+
 
 // Wire UI events
 window.addEventListener("DOMContentLoaded", function() {
@@ -36,14 +38,35 @@ window.addEventListener("DOMContentLoaded", function() {
             
         });
     }
+
 });
+
+function setTitle(s) {
+    const title = document.getElementById("title");
+    if (!title) return;
+    title.textContent = `🐘 Bot (${s.id})`;
+}
 
 // Fetch /api/status and update UI
 function refresh() {
     q("/api/status").then(function(s) {        
         lastStatus = s;
         renderPeers(s);
-        renderGraph(s);
+        setTitle(s);
+
+        // find differnce between old and new peers
+        const oldPeers = peersMap;
+        const newPeers = s.peers.map(p => p.id);
+        for (const p of newPeers) {
+            if (!oldPeers.includes(p)) {
+                console.log("New peer:", p);
+                renderGraph(s);
+                peersMap = newPeers;
+                break;
+            }
+        }
+        
+        
         if (selectedPeerId) updateDetailPanel(selectedPeerId);
     }).catch((error) => {
         console.error("Failed to fetch status:", error);
@@ -93,18 +116,6 @@ function renderPeers(s) {
         tbody.appendChild(tr);
     }
 }
-
-function renderTargets(s) {
-    var ul = document.getElementById("targets");
-    if (!ul) return;
-    ul.innerHTML = "";
-    for (var i = 0; i < s.targets.length; i++) {
-        var li = document.createElement("li");
-        li.textContent = s.targets[i];
-        ul.appendChild(li);
-    }
-}
-
 
 /* ---------- Tiny graph (local view) ---------- */
 function renderGraph(s) {
