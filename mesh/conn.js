@@ -128,7 +128,7 @@ class conn {
         if (msg && msg.t === T.DM) {
             if (msg.src && body.to === this.state.botId) {
                 console.log(`Received DM from ${msg.src}: ${JSON.stringify(body.data)}`);
-                this.send(this.gstp.mkMD(msg.id));
+                this.send(this.gstp.mkMD(msg.id, { text: "Received your DM loud and clear!" }));
             }
 
             return;
@@ -138,6 +138,7 @@ class conn {
             const waiter = this.state.getPending(msg.rid);
             if (waiter) {
                 waiter.resolve(msg);
+                this.state.removePending(msg.rid);
             }
 
             return;
