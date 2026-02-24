@@ -8,38 +8,21 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const config = require("./config");
-const StateManager = require("./core/StateManager");
-const GSTP = require("./utils/GSTP");
-const Logger = require("./core/Logger");
-const MeshManager = require("./mesh/MeshManager");
+const STATE = require("./state");
+const GSTP = require("./lib/GSTP");
+const MESH = require("./mesh/mesh");
 const app = require("./web/server"); 
 
 // Initialize
-const logger = new Logger(config.BOT_ID);
 const gstp = new GSTP(config.BOT_ID, config.TCP_PORT);
-const state = new StateManager(config.BOT_ID);
+const state = new STATE(config.BOT_ID);
+const mesh = new MESH(config, state, gstp);
 
 // Setup initial known peers
 state.addKnown(config.MY_HOST + ":" + config.TCP_PORT);
-for (const hp of config.SEED_PEERS) {
-    const parts = hp.split(":");
-    if (parts.length === 2) {
-        const host = parts[0];
-        const port = parseInt(parts[1], 10);
-        if (!isNaN(port)) {
-            state.addTarget(host, port);
-        }
-    }
-}
-
-// Create mesh and API
-const mesh = new MeshManager(config, state, gstp, logger);
 
 // Start listeners
 mesh.listen(config.TCP_PORT);
-api.listen(config.HTTP_PORT);
-
-logger.log(`Ready`);
 
 // Graceful shutdown
 process.on("SIGTERM", () => {

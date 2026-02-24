@@ -1,14 +1,11 @@
-const gstp = require("../utils/GSTP");
-
 class conn {
-    constructor(socket, initiatedByMe, remoteAddrKey, state) {
+    constructor(socket, initiatedByMe, remoteAddrKey, state, gstp) {
         this.socket = socket;
         this.initiatedByMe = !!initiatedByMe;
         this.remoteAddrKey = remoteAddrKey || null; // "host:port"
         this.remoteId = null;
         this.state = state;
         this.gstp = gstp;
-        this.logger = logger;
         
         this.lastSeen = gstp.now();
         this.rtt = null;
@@ -41,17 +38,24 @@ class conn {
         };
     }
 
+    enc(obj) {
+        const b = Buffer.from(JSON.stringify(obj));
+        const h = Buffer.alloc(4);
+        h.writeUInt32BE(b.length);
+        return Buffer.concat([h, b]);
+    }
+
 
     send(obj) {
         if (!this.socket || this.socket.destroyed) return;
-        const ok = this.socket.write(this.gstp.enc(obj));
+        const ok = this.socket.write(this.enc(obj));
         if (!ok) this.queue.push(obj);
     }
 
     flush() {
         if (!this.socket || this.socket.destroyed) return;
         while (this.queue.length > 0) {
-            const ok = this.socket.write(this.gstp.enc(this.queue[0]));
+            const ok = this.socket.write(this.enc(this.queue[0]));
             if (!ok) return;
             this.queue.shift();
         }
@@ -195,4 +199,4 @@ class conn {
     }
 }
 
-module.exports = Connection;
+module.exports = conn;
