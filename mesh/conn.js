@@ -98,10 +98,6 @@ class conn {
                 }
             }
 
-            if (this.remoteId) {
-                this.state.addConnection(this.remoteId, this);
-                this.state.setPeerWindow(this.remoteId, body.win || 64);
-            }
 
             this.send(this.gstp.mkOY(msg.id));
 
@@ -111,8 +107,8 @@ class conn {
 
         // OY - Response to YO 
         if (msg && msg.t === T.OY) {
+            console.log("Got OY peer conected");
             if (!this.initiatedByMe && msg.src == this.remoteId) {
-                console.log("Got OY peer conected");
             }
 
             return;
