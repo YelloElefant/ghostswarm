@@ -6,8 +6,46 @@ class STATE {
         this.peers = new Map(); // id -> peer info
         this.known = new Map();
         this.queue = [];
-    }   
+        this.pending = new Map(); // msg.id -> {resolve}
+    } 
+    
+    getAllPeers() {
+        return Array.from(this.peers.values());
+    }
 
+    getPeer(id) {
+        return this.peers.get(id);
+    }
+
+    addPeer(id, conn) {
+        this.peers.set(id, {
+            id,
+            conn,
+            lastSeen: Date.now(),
+            rtt: null
+        });
+    }
+
+    addPending(id, resolve) {
+        this.pending.set(id, { resolve });
+    }
+
+    getPending(id) {
+        return this.pending.get(id);
+    }
+
+    removePending(id) {
+        this.pending.delete(id);
+    }
+
+    addConnection(id, conn) {
+        this.peers.set(id, {
+            id,
+            conn,
+            lastSeen: Date.now(),
+            rtt: null
+        });
+    }
     
     addKnown(addr) {
         if (!this.known.has(addr)) {
@@ -43,6 +81,8 @@ class STATE {
             uptime: process.uptime()
         };
     }
+
+
 }
 
 

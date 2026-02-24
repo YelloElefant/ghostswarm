@@ -108,8 +108,16 @@ class conn {
         // OY - Response to YO 
         if (msg && msg.t === T.OY) {
             console.log("Got OY peer conected");
-            if (!this.initiatedByMe && msg.src == this.remoteId) {
-            }
+            
+            this.state.addPeer(this.remoteId, {
+                id: this.remoteId,
+                addr: this.remoteAddrKey,
+                host: this.remoteAddrKey ? this.remoteAddrKey.split(":")[0] : null,
+                port: this.remoteAddrKey ? parseInt(this.remoteAddrKey.split(":")[1], 10) : null,
+                lastSeen: this.gstp.now(),
+                window: body.win || 64,
+                backoff: 0
+            });
 
             return;
         }
@@ -144,7 +152,7 @@ class conn {
 
         // Retry connection if we initiated it
         if (this.initiatedByMe && this.remoteAddrKey) {
-            const t = this.state.getTarget(this.remoteAddrKey);
+            const t = this.state.getPeer(this.remoteAddrKey);
             if (t) {
                 t.backoff = Math.min((t.backoff || 500) * 1.7, 20000);
                 const delay = t.backoff + Math.floor(Math.random() * 500);

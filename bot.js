@@ -11,12 +11,13 @@ const config = require("./config");
 const STATE = require("./state");
 const GSTP = require("./lib/GSTP");
 const MESH = require("./mesh/mesh");
-const app = require("./web/server"); 
+const SERVER = require("./web/server"); 
 
 // Initialize
 const gstp = new GSTP(config.BOT_ID, config.TCP_PORT);
 const state = new STATE(config.BOT_ID);
 const mesh = new MESH(config, state, gstp);
+const server = new SERVER(config.HTTP_PORT, state, gstp);
 
 // Setup initial known peers
 state.addKnown(config.MY_HOST + ":" + config.TCP_PORT);
@@ -36,3 +37,8 @@ process.on("SIGINT", () => {
     mesh.stop();
     process.exit(0);
 });
+
+setInterval(() => {
+    console.log("peers: ", state.getAllPeers());
+    
+}, 5000);
