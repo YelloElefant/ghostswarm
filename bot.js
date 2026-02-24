@@ -11,7 +11,7 @@ const config = require("./config");
 const STATE = require("./state");
 const GSTP = require("./lib/GSTP");
 const MESH = require("./mesh/mesh");
-const SERVER = require("./web/server"); 
+const SERVER = require("./web/server");
 
 // Initialize
 const gstp = new GSTP(config.BOT_ID, config.TCP_PORT);
@@ -27,18 +27,17 @@ mesh.listen(config.TCP_PORT);
 
 // Graceful shutdown
 process.on("SIGTERM", () => {
-    console.log("SIGTERM - shutting down");
-    mesh.stop();
-    process.exit(0);
+  console.log("SIGTERM - shutting down");
+  process.exit(0);
 });
 
 process.on("SIGINT", () => {
-    console.log("SIGINT - shutting down");
-    mesh.stop();
-    process.exit(0);
+  console.log("SIGINT - shutting down");
+  process.exit(0);
 });
 
-setInterval(() => {
-    console.log("peers: ", state.getAllPeers());
-    
-}, 5000);
+// setInterval(() => {
+//   if (state.peers.size > 0) {
+//     console.log("peers: ", state.getAllPeers());
+//   }
+// }, 5000);
