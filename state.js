@@ -22,6 +22,10 @@ class STATE {
         this.peers.delete(id);
     }
 
+    getConnection(id) {
+        return this.peers.get(id);
+    }
+
     getStatus() {
         const cpu = process.cpuUsage();
         const mem = process.memoryUsage();
