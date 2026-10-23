@@ -216,7 +216,8 @@ class conn {
 
         // Retry connection if we initiated it
         if (this.initiatedByMe && this.remoteAddrKey) {
-            const t = this.state.getPeer(this.remoteAddrKey).conn;
+            const peer = this.remoteId && this.state.getPeer(this.remoteId);
+            const t = peer && peer.conn;
             if (t) {
                 t.backoff = Math.min((t.backoff || 500) * 1.7, 20000);
                 const delay = t.backoff + Math.floor(Math.random() * 500);
