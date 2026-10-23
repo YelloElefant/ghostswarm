@@ -128,7 +128,7 @@ async function storeFile(tmpPath, originalName) {
     return { hash, duplicate, torrent };
 }
 
-// Summaries of every torrent whose file is present
+// Summaries of every known torrent; have says whether the file itself is stored here
 async function listTorrents() {
     let entries;
     try {
@@ -144,22 +144,52 @@ async function listTorrents() {
         if (!file.endsWith(TORRENT_EXT) || !HASH_RE.test(hash)) continue;
         try {
             const t = await readTorrentFile(path.join(TORRENT_DIR, file));
-            const stat = await fs.promises.stat(path.join(DATA_DIR, hash));
+            const have = await fs.promises.access(path.join(DATA_DIR, hash)).then(() => true, () => false);
             out.push({
                 hash,
+                have,
                 name: t.info.name,
                 ext: path.extname(t.info.name).slice(1).toLowerCase(),
-                size: stat.size,
+                size: t.info.size,
                 chunks: t.info.chunks.length,
                 infoHash: t.infoHash,
-                created: t.created || stat.mtimeMs
+                created: t.created
             });
-        } catch (e) { /* skip torrents that are unreadable or missing their file */ }
+        } catch (e) { /* skip unreadable torrents */ }
     }
     return out.sort((a, b) => b.created - a.created);
 }
 
-// Removes the stored file and its torrent together
+// Removes the stored file (if held) and its torrent together
+// Checks a torrent received from a peer: shape, and that infoHash really matches its info
+function validateTorrent(t) {
+    const info = t && t.info;
+    return !!(t && t.v === 1 && info
+        && typeof info.name === "string" && info.name
+        && Number.isSafeInteger(info.size) && info.size >= 0
+        && Number.isSafeInteger(info.chunkSize) && info.chunkSize > 0
+        && info.algo === HASH_ALGO
+        && HASH_RE.test(info.hash)
+        && Array.isArray(info.chunks) && info.chunks.every((h) => HASH_RE.test(h))
+        && info.chunks.length === Math.ceil(info.size / info.chunkSize)
+        && t.infoHash === hashBuffer(Buffer.from(JSON.stringify(info))));
+}
+
+// Saves a validated torrent from a peer. Returns false if invalid or already known.
+async function saveTorrent(t) {
+    if (!validateTorrent(t)) return false;
+    const dest = path.join(TORRENT_DIR, t.info.hash + TORRENT_EXT);
+    await fs.promises.mkdir(TORRENT_DIR, { recursive: true });
+    const clean = { v: 1, infoHash: t.infoHash, created: t.created, info: t.info };
+    try {
+        await fs.promises.writeFile(dest, JSON.stringify(clean, null, 2), { flag: "wx" });
+        return true;
+    } catch (err) {
+        if (err.code === "EEXIST") return false;
+        throw err;
+    }
+}
+
 async function deleteTorrent(hash) {
     if (!HASH_RE.test(hash)) throw Object.assign(new Error("invalid hash"), { code: "EINVAL" });
     const results = await Promise.allSettled([
@@ -176,6 +206,8 @@ module.exports = {
     TORRENT_DIR,
     HASH_RE,
     storeFile,
+    validateTorrent,
+    saveTorrent,
     listTorrents,
     deleteTorrent,
     CHUNK_SIZE,

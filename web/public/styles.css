@@ -124,7 +124,6 @@ header {
 }
 
 #botId {
-    max-width: min(36vw, 260px);
     overflow: hidden;
     padding-left: 10px;
     border-left: 1px solid var(--border);
@@ -522,7 +521,6 @@ button.secondary:hover,
     }
 
     #botId {
-        max-width: 22vw;
     }
 }
 
@@ -737,7 +735,6 @@ a.button .material-icons {
 }
 
 .data-table td:first-child {
-    max-width: 360px;
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -766,7 +763,8 @@ a.button .material-icons {
     gap: 8px;
 }
 
-.row-actions button {
+.row-actions button,
+.row-actions a.button {
     padding: 4px 10px;
     font-size: 13px;
 }
@@ -774,4 +772,9 @@ a.button .material-icons {
 .mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 12px;
+}
+
+a.button.disabled {
+    opacity: .45;
+    pointer-events: none;
 }

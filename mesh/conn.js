@@ -156,6 +156,20 @@ class conn {
             return;
         }
 
+        // TORRENT - A torrent file announced by a peer; keep it and flood it onwards
+        if (msg && msg.t === T.TORRENT) {
+            if (this.state.hasSeen(msg.id)) return;
+            this.state.markSeen(msg.id);
+            tor.saveTorrent(msg.body && msg.body.torrent).catch(() => { });
+            if (msg.ttl > 1) {
+                const fwd = Object.assign({}, msg, { ttl: msg.ttl - 1 });
+                for (const [rid, c] of this.state.connections) {
+                    if (rid !== this.remoteId) c.send(fwd);
+                }
+            }
+            return;
+        }
+
         // LIST - Peer asks which torrents we hold
         if (msg && msg.t === T.LIST) {
             tor.listTorrents()

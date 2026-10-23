@@ -47,6 +47,11 @@ class SERVER {
             try {
                 await pipeline(req, fs.createWriteStream(tmpPath, { flags: "wx" }));
                 const { hash, duplicate, torrent } = await tor.storeFile(tmpPath, name);
+                if (!duplicate) {
+                    const packet = this.gstp.mkTORRENT(torrent);
+                    this.state.markSeen(packet.id);
+                    for (const conn of this.state.connections.values()) conn.send(packet);
+                }
                 res.json({ ok: true, name, hash, duplicate, bytes: torrent.info.size });
             } catch (err) {
                 fs.promises.unlink(tmpPath).catch(() => { });
@@ -54,15 +59,26 @@ class SERVER {
             }
         });
 
-        this.app.get("/api/torrents", async (req, res) => {
+        // Sends the stored file or its .gs torrent under the original name
+        const sendStored = (torrentOnly) => async (req, res) => {
+            const hash = String(req.query.hash || "");
+            if (!tor.HASH_RE.test(hash)) return res.status(400).json({ error: "invalid hash" });
             try {
-                res.json({ torrents: await tor.listTorrents() });
+                const t = await tor.readTorrentFile(path.join(tor.TORRENT_DIR, hash + tor.TORRENT_EXT));
+                if (torrentOnly) {
+                    return res.download(path.join(tor.TORRENT_DIR, hash + tor.TORRENT_EXT), t.info.name + tor.TORRENT_EXT);
+                }
+                res.download(path.join(DATA_DIR, hash), t.info.name, (err) => {
+                    if (err && !res.headersSent) res.status(404).json({ error: "file not stored on this bot" });
+                });
             } catch (err) {
-                res.status(500).json({ error: "could not read torrents" });
+                res.status(404).json({ error: "not found" });
             }
-        });
+        };
+        this.app.get("/api/download", sendStored(false));
+        this.app.get("/api/download-torrent", sendStored(true));
 
-        // Deleting either side removes the file and its torrent together
+        // Removes the file (if held) and its torrent together
         const removeStored = async (req, res) => {
             try {
                 await tor.deleteTorrent(String(req.query.hash || ""));
@@ -73,7 +89,6 @@ class SERVER {
             }
         };
         this.app.delete("/api/uploads", removeStored);
-        this.app.delete("/api/torrents", removeStored);
 
         this.app.post("/api/peer-torrents", async (req, res) => {
             const conn = this.state.getConnection(req.body && req.body.to ? req.body.to : "");

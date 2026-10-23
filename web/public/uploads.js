@@ -38,6 +38,20 @@ function request(url, method) {
     });
 }
 
+function downloadLink(label, url, disabled) {
+    const a = document.createElement("a");
+    if (disabled) {
+        a.className = "button secondary disabled";
+        a.textContent = label;
+        a.title = "File is not stored on this bot";
+        return a;
+    }
+    a.className = "button secondary";
+    a.textContent = label;
+    a.href = url;
+    return a;
+}
+
 function buildRow(values, numCols, actions, monoCols) {
     const tr = document.createElement("tr");
     values.forEach(function(text, i) {
@@ -70,6 +84,8 @@ function loadUploads() {
 
             res.files.forEach(function(file) {
                 const actions = [
+                    downloadLink("Download", "/api/download?hash=" + file.hash, !file.have),
+                    downloadLink("Download Torrent", "/api/download-torrent?hash=" + file.hash),
                     actionButton("Delete", function() {
                         if (!confirm("Delete " + file.name + "?")) return Promise.resolve();
                         return request("/api/uploads?hash=" + file.hash, "DELETE")
@@ -81,6 +97,7 @@ function loadUploads() {
                     file.ext || "-",
                     formatSize(file.size),
                     file.hash.slice(0, 16) + "…",
+                    file.have ? "Yes" : "Torrent Only",
                     new Date(file.created).toLocaleString()
                 ], [2], actions, [4]));
             });
@@ -94,45 +111,8 @@ function loadUploads() {
         });
 }
 
-function loadTorrents() {
-    const summary = document.getElementById("torrentsSummary");
-    return fetch("/api/torrents")
-        .then(function(r) {
-            if (!r.ok) throw new Error("Request failed");
-            return r.json();
-        })
-        .then(function(res) {
-            const body = document.getElementById("torrentsBody");
-            body.replaceChildren();
-
-            res.torrents.forEach(function(t) {
-                const actions = [
-                    actionButton("Delete", function() {
-                        if (!confirm("Delete " + t.name + "?")) return Promise.resolve();
-                        return request("/api/torrents?hash=" + t.hash, "DELETE")
-                            .then(refreshAll);
-                    })
-                ];
-                body.appendChild(buildRow([
-                    t.name,
-                    formatSize(t.size),
-                    String(t.chunks),
-                    t.infoHash.slice(0, 16) + "…",
-                    new Date(t.created).toLocaleString()
-                ], [1, 2], actions, [3]));
-            });
-
-            summary.textContent = plural(res.torrents.length, "torrent");
-            document.getElementById("torrentsEmpty").hidden = res.torrents.length > 0;
-        })
-        .catch(function() {
-            summary.textContent = "Unable to load torrents";
-        });
-}
-
 function refreshAll() {
     loadUploads();
-    loadTorrents();
     loadPeers();
 }
 
