@@ -52,6 +52,7 @@ function refresh() {
     q("/api/status").then(function(s) {        
         lastStatus = s;
         renderPeers(s);
+        renderRecipientOptions(s.peers);
         setTitle(s);
 
         // find differnce between old and new peers
@@ -71,6 +72,26 @@ function refresh() {
     }).catch((error) => {
         console.error("Failed to fetch status:", error);
     });
+}
+
+function renderRecipientOptions(peers) {
+    var recipient = document.getElementById("to");
+    if (!recipient) return;
+
+    var selectedId = recipient.value;
+    recipient.replaceChildren(new Option("Select a peer", ""));
+
+    for (var i = 0; i < peers.length; i++) {
+        var id = peers[i].id;
+        if (!id) continue;
+        recipient.add(new Option(id, id));
+    }
+
+    if (peers.some(function(peer) {
+        return peer.id === selectedId;
+    })) {
+        recipient.value = selectedId;
+    }
 }
 
 function renderPeers(s) {

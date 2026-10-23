@@ -1,118 +1,109 @@
-/* =========================================================
-   GhostSwarm Dashboard — v2 Styles (dark neon)
-   Author: YelloElefant
-   ========================================================= */
-
 :root {
-    --primary: #10b981;
-    --primary-light: #152b2b;
-    --primary-hover: #059669;
-    --bg-dark: #0f1115;
-    --bg: #111;
-    --bg-light: #1a1a1a;
-    --border: #30363d;
-    --card: #161b22;
-    --text: #c9d1d9;
-    --text-muted: #8b949e;
+    color-scheme: dark;
+    --primary: #46d6a4;
+    --primary-hover: #66e7bb;
+    --bg: #0b1110;
+    --surface: #121b19;
+    --surface-raised: #17221f;
+    --border: #283833;
+    --text: #e5efeb;
+    --text-muted: #96aaa2;
+    --danger: #f08b8b;
+    --radius: 14px;
 }
-
-
-/* Reset-ish */
 
 * {
     box-sizing: border-box;
-    color: var(--white);
-    font-family: 'JetBrains Mono', monospace;
 }
 
-html,
-body {
-    height: 100%;
-    overflow: hidden;
-}
-
-body {
-    margin: 0;
-    padding: 0;
-    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+html {
+    min-width: 320px;
+    min-height: 100%;
     background: var(--bg);
-    color: var(--text);
+}
+
+body {
+    min-height: 100vh;
+    margin: 0;
     display: flex;
     flex-direction: column;
+    color: var(--text);
+    font:
+        15px/1.5 -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        sans-serif;
 }
 
-h1,
-h2,
-h3 {
-    margin: 0 0 .75rem;
+button,
+input,
+select,
+textarea {
+    font: inherit;
 }
 
-p {
-    margin: .5rem 0;
+button,
+input,
+textarea {
+    color: var(--text);
 }
-
-.matrix-bg {
-    background-color: #0f1115;
-    background-image:
-        radial-gradient(#161b22 15%, transparent 16%),
-        radial-gradient(#161b22 15%, transparent 16%);
-    background-size: 20px 20px;
-    background-position: 0 0, 10px 10px;
-}
-
 
 header {
-    padding: 1rem;
-    background: var(--card);
+    min-height: 76px;
+    padding: 14px clamp(18px, 5vw, 64px);
     display: flex;
     align-items: center;
-    gap: 1rem;
+    justify-content: space-between;
+    gap: 18px;
+    border-bottom: 1px solid rgba(150, 170, 162, 0.14);
+    background: rgba(13, 21, 19, 0.82);
 }
 
-#ghostswarm {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: var(--text-muted);
+#title {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#icon {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(70, 214, 164, 0.28);
+    border-radius: 12px;
+    background: rgba(70, 214, 164, 0.09);
 }
 
 #network-icon {
     color: var(--primary);
-    animation: pulse 2s infinite;
-    font-size: 50px;
+    font-size: 25px;
 }
 
-@keyframes pulse {
-    0% {
-        transform: scale(1);
-        opacity: 1;
-    }
-    50% {
-        transform: scale(1.2);
-        opacity: 0.7;
-    }
-    100% {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-
-#title {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    padding-right: 1.5rem;
-    border-right: 1px solid var(--border);
+#ghostswarm {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 1.08rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    text-overflow: ellipsis;
 }
 
 #botBadge {
-    background: var(--primary-light);
-    border: 1px solid var(--primary);
-    color: #fff;
-    padding: 0.5rem;
-    border-radius: 50px;
-    font-size: 0.75rem;
+    min-width: 0;
     display: flex;
-    gap: 0.25rem;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border: 1px solid rgba(70, 214, 164, 0.24);
+    border-radius: 999px;
+    background: rgba(70, 214, 164, 0.08);
+    color: var(--primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
 }
 
 #botBadge div {
@@ -120,7 +111,362 @@ header {
     align-items: center;
 }
 
+#botBadge svg {
+    flex: 0 0 auto;
+}
+
+#botStatus {
+    white-space: nowrap;
+}
+
 #botId {
-    margin-left: 0.75rem;
-    color: var(--primary);
+    max-width: min(36vw, 260px);
+    overflow: hidden;
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#subtitle {
+    width: min(1180px, calc(100% - 40px));
+    min-height: 0;
+    margin: 24px auto 0;
+    color: var(--text-muted);
+}
+
+.grid {
+    width: min(1180px, calc(100% - 40px));
+    margin: 24px auto 48px;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: start;
+    gap: 18px;
+}
+
+.card {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.14);
+}
+
+.card > summary {
+    min-height: 60px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.card > summary::-webkit-details-marker {
+    display: none;
+}
+
+.card > summary::after {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+    content: "";
+    transform: rotate(45deg) translateY(-2px);
+    transition: transform 0.16s ease;
+}
+
+.card[open] > summary {
+    border-bottom: 1px solid rgba(150, 170, 162, 0.12);
+}
+
+.card[open] > summary::after {
+    transform: rotate(225deg) translate(-2px, -1px);
+}
+
+.card > summary:focus-visible {
+    outline: 3px solid rgba(70, 214, 164, 0.35);
+    outline-offset: -3px;
+}
+
+.card-content {
+    padding: 18px 20px 20px;
+}
+
+.card:nth-child(1),
+.card:nth-child(4) {
+    grid-column: span 7;
+}
+
+.card:nth-child(2),
+.card:nth-child(3) {
+    grid-column: span 5;
+}
+
+h3 {
+    margin: 0;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+}
+
+.row {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+}
+
+.row + .row {
+    margin-top: 10px;
+}
+
+input,
+textarea {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    outline: none;
+    background: #0d1513;
+    color: var(--text);
+    font-size: 0.875rem;
+    transition:
+        border-color 0.16s ease,
+        box-shadow 0.16s ease;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #71847c;
+    opacity: 1;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(70, 214, 164, 0.12);
+}
+
+input[type="number"] {
+    max-width: 84px;
+}
+
+textarea {
+    min-height: 100px;
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+button {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid var(--primary);
+    border-radius: 9px;
+    background: var(--primary);
+    color: #092018;
+    cursor: pointer;
+    font-size: 0.84rem;
+    font-weight: 700;
+    transition:
+        background 0.16s ease,
+        border-color 0.16s ease,
+        transform 0.16s ease;
+}
+
+button:hover {
+    border-color: var(--primary-hover);
+    background: var(--primary-hover);
+}
+
+button:active {
+    transform: translateY(1px);
+}
+
+button:focus-visible {
+    outline: 3px solid rgba(70, 214, 164, 0.35);
+    outline-offset: 2px;
+}
+
+button.secondary {
+    border-color: var(--border);
+    background: var(--surface-raised);
+    color: var(--text);
+}
+
+button.secondary:hover {
+    border-color: var(--danger);
+    background: rgba(240, 139, 139, 0.1);
+    color: var(--danger);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+th,
+td {
+    padding: 11px 10px;
+    border-bottom: 1px solid rgba(150, 170, 162, 0.12);
+    vertical-align: middle;
+}
+
+th {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 650;
+    letter-spacing: 0.025em;
+}
+
+td {
+    color: var(--text);
+    font-size: 0.82rem;
+}
+
+td:first-child {
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+td:last-child {
+    white-space: nowrap;
+}
+
+td button {
+    min-height: 32px;
+    padding: 5px 9px;
+    font-size: 0.75rem;
+}
+
+#graphWrapper {
+    width: 100%;
+    min-height: 260px;
+    overflow: hidden;
+    border: 1px solid rgba(150, 170, 162, 0.12);
+    border-radius: 10px;
+    background:
+        radial-gradient(circle, rgba(150, 170, 162, 0.1) 1px, transparent 1.5px)
+            0 0 / 18px 18px,
+        #0d1513;
+}
+
+#swarmGraph {
+    display: block;
+    width: 100%;
+    height: 260px;
+}
+
+#swarmGraph .link {
+    stroke: #42675a;
+    stroke-width: 1.5px;
+}
+
+#swarmGraph .node text {
+    fill: var(--text-muted);
+    font-size: 10px;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: #0d1513;
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+
+#swarmGraph .node circle.alive {
+    fill: var(--primary);
+    stroke: rgba(70, 214, 164, 0.28);
+    stroke-width: 5px;
+    cursor: pointer;
+}
+
+.muted {
+    color: var(--text-muted);
+}
+
+#dmResult {
+    max-height: 180px;
+    overflow: auto;
+    font-size: 0.78rem;
+    white-space: pre-wrap;
+}
+
+@media (max-width: 760px) {
+    .grid {
+        gap: 14px;
+    }
+
+    .card:nth-child(n) {
+        grid-column: span 12;
+    }
+}
+
+@media (max-width: 520px) {
+    header {
+        padding-inline: 16px;
+    }
+
+    #botBadge {
+        gap: 6px;
+        padding: 6px 9px;
+        font-size: 0.65rem;
+    }
+
+    #botId {
+        max-width: 25vw;
+    }
+
+    #subtitle,
+    .grid {
+        width: calc(100% - 28px);
+    }
+
+    .grid {
+        margin-top: 16px;
+    }
+
+    .card > summary {
+        padding: 16px;
+    }
+
+    .card-content {
+        padding: 16px;
+    }
+
+    .row {
+        flex-wrap: wrap;
+    }
+
+    .row > input,
+    .row > select,
+    .row > button {
+        flex: 1 1 120px;
+    }
+
+    .row > input[type="number"] {
+        flex: 0 0 76px;
+    }
+
+    table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+    }
 }

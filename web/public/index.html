@@ -17,7 +17,7 @@
             <div id="icon">
                 <i class="material-icons" id="network-icon">hub</i>
             </div>
-            <span id="ghostswarm">Ghost_Swarm</span>
+            <span id="ghostswarm">GhostSwarm</span>
         </div>
         <div id="botBadge">
             <div>
@@ -26,62 +26,74 @@
                 </svg>
             </div>
             <div id="botStatus">
-                CONNECTED:
+                Connected
             </div>
             <div id="botId"></div>
         </div>
     </header>
     <p class="muted" id="subtitle"></p>
 
-    <!--
     <div class="grid">
-        <div class="card">
-            <h3>Peers</h3>
-            <table id="peers">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Last Seen</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
+        <details class="card" open>
+            <summary><h3>Peers</h3></summary>
+            <div class="card-content">
+                <table id="peers">
+                    <thead>
+                        <tr>
+                            <th>Peer</th>
+                            <th>Last seen</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </details>
 
-        <div class="card">
-            <h3>Send BROADCAST</h3>
-            <div class="row">
-                <input id="topic" placeholder="topic" value="chat">
-                <input id="data" placeholder="message">
-                <button id="sendBlastBtn">Send</button>
+        <details class="card" open>
+            <summary><h3>Send Broadcast</h3></summary>
+            <div class="card-content">
+                <div class="row">
+                    <input id="topic" aria-label="Broadcast topic" placeholder="Topic" value="chat" list="topicOptions">
+                    <datalist id="topicOptions">
+                        <option value="chat"></option>
+                    </datalist>
+                    <input id="data" aria-label="Broadcast message" placeholder="Message">
+                    <button id="sendBlastBtn">Send</button>
+                </div>
             </div>
-        </div>
+        </details>
 
-        <div class="card">
-            <h3>Send DM</h3>
-            <div class="row">
-                <input id="to" placeholder="to (bot id)">
-                <input id="op" placeholder="op" value="getStatus">
-                <input id="ttl" type="number" value="8" min="1" max="16">
+        <details class="card" open>
+            <summary><h3>Send Direct Message</h3></summary>
+            <div class="card-content">
+                <div class="row">
+                    <select id="to" aria-label="Recipient bot">
+                        <option value="">Select a peer</option>
+                    </select>
+                    <select id="op" aria-label="Message type">
+                        <option value="message">Message</option>
+                    </select>
+                </div>
+                <div class="row" style="margin-top:8px;">
+                    <textarea id="json" aria-label="Message data in JSON format" rows="4" placeholder='{"foo":1}'></textarea>
+                </div>
+                <div class="row" style="margin-top:8px;">
+                    <button id="sendDmBtn">Send</button>
+                </div>
+                <pre id="dmResult" class="muted"></pre>
             </div>
-            <div class="row" style="margin-top:8px;">
-                <textarea id="json" rows="4" style="width:100%;" placeholder='{"foo":1}'></textarea>
-            </div>
-            <div class="row" style="margin-top:8px;">
-                <button id="sendDmBtn">Send</button>
-            </div>
-            <pre id="dmResult" class="muted"></pre>
-        </div>
+        </details>
 
-        <div class="card">
-            <h3>Swarm Graph</h3>
-            <div id="graphWrapper">
-                <svg id="swarmGraph"></svg>
+        <details class="card" open>
+            <summary><h3>Swarm Graph</h3></summary>
+            <div class="card-content">
+                <div id="graphWrapper">
+                    <svg id="swarmGraph"></svg>
+                </div>
             </div>
-        </div>
+        </details>
     </div>
-    -->
 
     <script src="lib.js"></script>
     <script src="script.js"></script>
