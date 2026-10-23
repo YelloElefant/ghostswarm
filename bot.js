@@ -27,6 +27,11 @@ state.addKnown(config.MY_HOST + ":" + config.TCP_PORT);
 // Start listeners
 mesh.listen(config.TCP_PORT);
 
+// Status heartbeat: every connected bot reports status back, so the dashboard is always live
+setInterval(() => {
+  for (const c of state.connections.values()) c.send(gstp.mkSTATUS());
+}, 3000).unref();
+
 // Graceful shutdown
 process.on("SIGTERM", () => {
   console.log("SIGTERM - shutting down");

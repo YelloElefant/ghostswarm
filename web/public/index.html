@@ -11,7 +11,7 @@
 </head>
 <!-- 🐘 -->
 
-<body class="matrix-bg">
+<body>
     <header>
         <div id="title">
             <div id="icon">
@@ -19,113 +19,65 @@
             </div>
             <span id="ghostswarm">GhostSwarm</span>
         </div>
-        <div class="header-actions">
-            <a class="button secondary" href="uploads.html">
-                <i class="material-icons" aria-hidden="true">folder_open</i>
-                Uploads
-            </a>
-            <button id="openUploadBtn" class="secondary">
-                <i class="material-icons" aria-hidden="true">upload_file</i>
-                Upload
-            </button>
-            <div id="botBadge" class="online">
+        <div id="botBadge" class="online">
             <span class="status-dot" aria-hidden="true"></span>
             <span id="botStatus">Connecting</span>
             <span id="botId"></span>
         </div>
-        </div>
     </header>
-    <main class="dashboard">
-        <aside id="sidebar" aria-label="Swarm controls">
-            <section class="sidebar-section">
-                <div class="section-heading">
-                    <h2>Peers</h2>
-                    <span id="peerCount" class="count-badge">0</span>
-                </div>
-                <div id="peerList" class="peer-list" aria-live="polite"></div>
-                <div id="peerDetails" class="peer-details" hidden>
-                    <div class="section-heading">
-                        <h3>Peer Details</h3>
-                        <button id="closePeerDetails" class="icon-button" aria-label="Close peer details">×</button>
-                    </div>
-                    <dl>
-                        <dt>Peer ID</dt>
-                        <dd id="detailId"></dd>
-                        <dt>Last seen</dt>
-                        <dd id="detailLastSeen"></dd>
-                    </dl>
-                    <button id="messagePeerBtn" class="secondary full-width">Message this peer</button>
-                </div>
-            </section>
 
-            <section class="sidebar-section">
-                <h2>Bot Status</h2>
-                <label for="statusTarget">Bot</label>
-                <select id="statusTarget" aria-label="Bot to check"></select>
-                <button id="getStatusBtn" class="full-width">Get Status</button>
-                <div id="statusResult" class="status-result" aria-live="polite"></div>
-            </section>
+    <main class="stage">
+        <svg id="swarmGraph" role="img" aria-label="Interactive graph of this bot and connected peers"></svg>
+        <p id="graphSummary" class="graph-summary muted">Connecting to swarm…</p>
 
-            <section class="sidebar-section">
-                <h2>Send Broadcast</h2>
-                <label for="topic">Topic</label>
-                <input id="topic" placeholder="Topic" value="chat" list="topicOptions">
-                <datalist id="topicOptions">
-                    <option value="chat"></option>
-                </datalist>
-                <label for="data">Message</label>
-                <input id="data" placeholder="Message">
-                <button id="sendBlastBtn" class="full-width">Send Broadcast</button>
-            </section>
+        <details id="filesCard" class="float-card left" open>
+            <summary>
+                <i class="material-icons" aria-hidden="true">folder_open</i>
+                <span>Files</span>
+                <span id="filesCount" class="count-badge">0</span>
+            </summary>
+            <div class="card-body">
+                <label class="toggle">
+                    <input id="autoDownload" type="checkbox">
+                    Tell All Bots To Download Uploads
+                </label>
+                <label id="dropZone" class="drop-zone" for="fileInput">
+                    <i class="material-icons" aria-hidden="true">cloud_upload</i>
+                    <strong>Drop Files Anywhere</strong>
+                    <span class="muted">Or click to browse</span>
+                    <input id="fileInput" type="file" multiple hidden>
+                </label>
+                <ul id="uploadList" class="upload-list" aria-live="polite"></ul>
+                <ul id="fileList" class="file-list"></ul>
+                <p id="filesEmpty" class="muted">No files yet.</p>
+            </div>
+        </details>
 
-            <section class="sidebar-section">
-                <h2>Send Direct Message</h2>
+        <details id="messageCard" class="float-card right">
+            <summary>
+                <i class="material-icons" aria-hidden="true">chat</i>
+                <span>Send Message</span>
+            </summary>
+            <div class="card-body">
                 <label for="to">Recipient</label>
-                <select id="to" aria-label="Recipient bot">
-                    <option value="">Select a peer</option>
-                </select>
-                <label for="op">Message type</label>
-                <select id="op" aria-label="Message type">
-                    <option value="message">Message</option>
-                </select>
-                <label for="json">Message</label>
-                <textarea id="json" rows="4" placeholder="Type a message"></textarea>
-                <button id="sendDmBtn" class="full-width">Send Message</button>
-                <pre id="dmResult" class="muted" aria-live="polite"></pre>
-            </section>
-        </aside>
+                <select id="to" aria-label="Recipient"></select>
+                <label for="text">Message</label>
+                <textarea id="text" rows="3" placeholder="Type a message"></textarea>
+                <button id="sendBtn" class="full-width">Send</button>
+            </div>
+        </details>
 
-        <section class="graph-stage" aria-label="Swarm graph">
-            <div class="graph-toolbar">
-                <button id="sidebarToggle" class="icon-button" aria-label="Hide sidebar" aria-expanded="true">
-                    <i class="material-icons" aria-hidden="true">menu</i>
-                </button>
-                <div>
-                    <h1>Swarm Graph</h1>
-                    <p id="graphSummary" class="muted">Connecting to swarm…</p>
-                </div>
-            </div>
-            <div id="graphWrapper">
-                <svg id="swarmGraph" role="img" aria-label="Interactive graph of this bot and connected peers"></svg>
-            </div>
-        </section>
+        <div id="toasts" aria-live="polite"></div>
     </main>
 
-    <dialog id="uploadModal" aria-labelledby="uploadTitle">
-        <div class="modal-header">
-            <h2 id="uploadTitle">Upload Files</h2>
-            <button id="closeUploadBtn" class="icon-button" aria-label="Close upload dialog">×</button>
-        </div>
-        <label id="dropZone" class="drop-zone" for="fileInput">
+    <div id="dropOverlay" hidden>
+        <div>
             <i class="material-icons" aria-hidden="true">cloud_upload</i>
-            <strong>Drag and drop files here</strong>
-            <span class="muted">or click to browse. Files are saved to the data folder.</span>
-            <input id="fileInput" type="file" multiple hidden>
-        </label>
-        <ul id="uploadList" class="upload-list" aria-live="polite"></ul>
-    </dialog>
+            <strong>Drop To Upload</strong>
+            <span id="dropMode"></span>
+        </div>
+    </div>
 
-    <script src="lib.js"></script>
     <script src="script.js"></script>
 </body>
 

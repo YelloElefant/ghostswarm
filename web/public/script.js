@@ -1,95 +1,31 @@
-// Simple helper to call the admin API
 function q(path, opts) {
-    var o = opts || {};
-    var headers = o.headers || {};
-    headers["content-type"] = "application/json";
-    o.headers = headers;
+    const o = opts || {};
+    o.headers = Object.assign({ "content-type": "application/json" }, o.headers);
     return fetch(path, o).then(function(r) {
-        return r.json();
+        return r.json().catch(function() { return {}; }).then(function(res) {
+            if (!r.ok) throw new Error(res.error || "Request failed");
+            return res;
+        });
     });
 }
 
-let lastStatus = null;
-let selectedPeerId = null;
-let peersMap = [];
-let graphSimulation = null;
-let graphTransform = d3.zoomIdentity;
+function el(tag, className, text) {
+    const e = document.createElement(tag);
+    if (className) e.className = className;
+    if (text !== undefined) e.textContent = text;
+    return e;
+}
 
-
-// Wire UI events
-window.addEventListener("DOMContentLoaded", function() {
-    // First load + poll
-    refresh();
-    setInterval(refresh, 2000);
-
-    const sendDmBtn = document.getElementById("sendDmBtn");
-    if (sendDmBtn) {
-        sendDmBtn.addEventListener("click", function() {
-            const to = document.getElementById("to").value.trim();
-            const msg = document.getElementById("json").value.trim();
-            if (!to || !msg) {
-                alert("Please enter both recipient and message.");
-                return;
-            }
-            q("/api/dm", {
-                method: "POST",
-                body: JSON.stringify({ to, msg })
-            }).then((res) => {
-                document.getElementById("dmResult").textContent = JSON.stringify(res, null, 2);
-            }).catch((error) => {
-                console.error("Failed to send direct message:", error);
-                document.getElementById("dmResult").textContent = "Message failed to send.";
-            });
-        });
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    const units = ["KB", "MB", "GB", "TB"];
+    let value = bytes / 1024;
+    let i = 0;
+    while (value >= 1024 && i < units.length - 1) {
+        value /= 1024;
+        i++;
     }
-
-    document.getElementById("sidebarToggle").addEventListener("click", function() {
-        const sidebar = document.getElementById("sidebar");
-        const isExpanded = this.getAttribute("aria-expanded") === "true";
-        sidebar.classList.toggle("collapsed", isExpanded);
-        this.setAttribute("aria-expanded", String(!isExpanded));
-        this.setAttribute("aria-label", isExpanded ? "Show sidebar" : "Hide sidebar");
-        requestAnimationFrame(function() {
-            if (lastStatus) renderGraph(lastStatus);
-        });
-    });
-
-    document.getElementById("closePeerDetails").addEventListener("click", function() {
-        selectedPeerId = null;
-        document.getElementById("peerDetails").hidden = true;
-        document.querySelectorAll(".peer-item").forEach(function(peer) {
-            peer.classList.remove("selected");
-        });
-    });
-
-    document.getElementById("messagePeerBtn").addEventListener("click", function() {
-        const recipient = document.getElementById("to");
-        recipient.value = selectedPeerId || "";
-        document.getElementById("json").focus();
-    });
-
-    document.getElementById("getStatusBtn").addEventListener("click", getBotStatus);
-
-    setupUpload();
-
-    window.addEventListener("resize", function() {
-        if (lastStatus) renderGraph(lastStatus);
-    });
-});
-
-function setTitle(s) {
-    const title = document.getElementById("botId");
-    if (!title) return;
-    title.textContent = s.id;
-}
-
-function setConnected(connected) {
-    document.getElementById("botBadge").classList.toggle("online", connected);
-    document.getElementById("botStatus").textContent = connected ? "Connected" : "Disconnected";
-}
-
-function formatBytes(bytes) {
-    return (bytes / 1048576).toFixed(1) + " MB";
+    return value.toFixed(value < 10 ? 2 : 1) + " " + units[i];
 }
 
 function formatUptime(seconds) {
@@ -98,293 +34,351 @@ function formatUptime(seconds) {
     return h + "h " + m + "m " + Math.floor(seconds % 60) + "s";
 }
 
-function renderStatus(title, status) {
-    const result = document.getElementById("statusResult");
-    const card = document.createElement("div");
-    card.className = "status-card";
-    const heading = document.createElement("strong");
-    heading.textContent = title;
-    card.appendChild(heading);
-
-    const rows = status ? [
-        ["Uptime", formatUptime(status.uptime)],
-        ["Memory (RSS)", formatBytes(status.memory.rss)],
-        ["Heap used", formatBytes(status.memory.heapUsed) + " / " + formatBytes(status.memory.heapTotal)],
-        ["CPU user", (status.cpu.user / 1e6).toFixed(2) + " s"],
-        ["CPU system", (status.cpu.system / 1e6).toFixed(2) + " s"]
-    ] : [["Status", "No response"]];
-
-    const list = document.createElement("dl");
-    rows.forEach(function(row) {
-        const dt = document.createElement("dt");
-        dt.textContent = row[0];
-        const dd = document.createElement("dd");
-        dd.textContent = row[1];
-        list.append(dt, dd);
-    });
-    card.appendChild(list);
-    result.replaceChildren(card);
+function plural(n, word) {
+    return n + " " + word + (n === 1 ? "" : "s");
 }
 
-function renderStatusTargets(s) {
-    const select = document.getElementById("statusTarget");
-    const selected = select.value;
-    select.replaceChildren(new Option("Select a peer", ""));
-    s.peers.forEach(function(peer) {
-        if (peer.id) select.add(new Option(peer.id, peer.id));
+let lastStatus = null;
+let selectedId = null;
+
+window.addEventListener("DOMContentLoaded", function() {
+    refresh();
+    setInterval(refresh, 1500);
+    setupMessages();
+    setupFiles();
+    window.addEventListener("resize", function() {
+        if (lastStatus) updateGraphSize();
     });
-    if (Array.from(select.options).some(function(o) { return o.value === selected; })) {
-        select.value = selected;
-    }
+});
+
+function setConnected(connected, id) {
+    document.getElementById("botBadge").classList.toggle("online", connected);
+    document.getElementById("botStatus").textContent = connected ? "Connected" : "Disconnected";
+    if (id) document.getElementById("botId").textContent = id;
 }
 
-function getBotStatus() {
-    const target = document.getElementById("statusTarget").value;
-    if (!target) return;
-
-    const result = document.getElementById("statusResult");
-    result.textContent = "Requesting status…";
-    q("/api/peer-status", {
-        method: "POST",
-        body: JSON.stringify({ to: target })
-    }).then(function(res) {
-        renderStatus(target, res.ok ? res.status : null);
-    }).catch(function() {
-        renderStatus(target, null);
-    });
-}
-
-// Fetch /api/status and update UI
 function refresh() {
-    q("/api/status").then(function(s) {        
+    q("/api/status").then(function(s) {
         lastStatus = s;
-        renderPeers(s);
-        renderRecipientOptions(s.peers);
-        setTitle(s);
-        setConnected(true);
-        renderPeerDetails(s);
-        renderStatusTargets(s);
-
-        const newPeers = s.peers.map(p => p.id);
-        if (s.id !== peersMap[0] || newPeers.join("\0") !== peersMap.slice(1).join("\0")) {
-            peersMap = [s.id].concat(newPeers);
-            renderGraph(s);
-        }
-
-        const summary = document.getElementById("graphSummary");
-        summary.textContent = s.peers.length + (s.peers.length === 1 ? " peer connected" : " peers connected");
-    }).catch((error) => {
-        console.error("Failed to fetch status:", error);
+        setConnected(true, s.id);
+        renderRecipients(s);
+        renderGraph(s);
+        document.getElementById("graphSummary").textContent =
+            plural(s.peers.length, "peer") + " connected · Drag To Move · Scroll To Zoom";
+    }).catch(function() {
         setConnected(false);
         document.getElementById("graphSummary").textContent = "Unable to load swarm status";
     });
 }
 
-function renderRecipientOptions(peers) {
-    var recipient = document.getElementById("to");
-    if (!recipient) return;
+/* ---------- Graph: one table-style card per bot, joined by lines ---------- */
+const CARD_W = 230;
+const HEAD_H = 32;
+const ROW_H = 22;
+const ROWS = 6;
+const CARD_H = HEAD_H + ROWS * ROW_H + 6;
+const STALE_MS = 8000;
 
-    var selectedId = recipient.value;
-    recipient.replaceChildren(new Option("Select a peer", ""));
+let graph = { sig: "", nodes: [], links: [], sim: null, viewport: null, nodeSel: null, linkSel: null };
+let graphTransform = d3.zoomIdentity;
+let zoomBehavior = null;
 
-    for (var i = 0; i < peers.length; i++) {
-        var id = peers[i].id;
-        if (!id) continue;
-        recipient.add(new Option(id, id));
-    }
-
-    if (peers.some(function(peer) {
-        return peer.id === selectedId;
-    })) {
-        recipient.value = selectedId;
-    }
+function cardRows(info) {
+    if (!info) return [["Cpu", "-"], ["Memory", "-"], ["Uptime", "-"], ["Torrents", "-"], ["Downloading", "-"], ["Peers", "-"]];
+    const t = info.torrents || { total: 0, complete: 0, downloading: 0 };
+    return [
+        ["Cpu", (info.cpu.percent || 0).toFixed(1) + "%"],
+        ["Memory", formatSize(info.memory.rss)],
+        ["Uptime", formatUptime(info.uptime)],
+        ["Torrents", t.complete + " / " + t.total + " Held"],
+        ["Downloading", String(t.downloading)],
+        ["Peers", String((info.links || []).length)]
+    ];
 }
 
-function renderPeers(s) {
-    var peerList = document.getElementById("peerList");
-    if (!peerList) return;
-    peerList.replaceChildren();
-    document.getElementById("peerCount").textContent = s.peers.length;
-
-    for (var i = 0; i < s.peers.length; i++) {
-        var p = s.peers[i];
-        var peerButton = document.createElement("button");
-        peerButton.type = "button";
-        peerButton.className = "peer-item" + (p.id === selectedPeerId ? " selected" : "");
-        peerButton.addEventListener("click", function(id) {
-            return function() {
-                selectPeer(id);
-            };
-        }(p.id || ""));
-
-        var peerId = document.createElement("span");
-        peerId.className = "peer-id";
-        peerId.textContent = p.id || "Unknown peer";
-        var lastSeen = document.createElement("span");
-        lastSeen.className = "peer-last-seen";
-        lastSeen.textContent = lastSeenHuman(p.lastSeen);
-        peerButton.append(peerId, lastSeen);
-        peerList.appendChild(peerButton);
-    }
+// Status for a node: ours comes with the response, a peer's arrives by heartbeat
+function infoFor(s, id) {
+    if (id === s.id) return { info: s.self, fresh: true };
+    const entry = s.statuses && s.statuses[id];
+    if (!entry) return { info: null, fresh: false };
+    return { info: entry.status, fresh: Date.now() - entry.ts < STALE_MS };
 }
 
-function selectPeer(id) {
-    selectedPeerId = id;
-    document.getElementById("peerDetails").hidden = false;
-    document.getElementById("detailId").textContent = id;
-    document.querySelectorAll(".peer-item").forEach(function(peer) {
-        peer.classList.toggle("selected", peer.querySelector(".peer-id").textContent === id);
+function topology(s) {
+    const ids = new Set([s.id]);
+    const edges = new Set();
+    const link = function(a, b) {
+        if (a && b && a !== b) edges.add([a, b].sort().join("|"));
+    };
+
+    s.peers.forEach(function(p) {
+        if (!p.id) return;
+        ids.add(p.id);
+        link(s.id, p.id);
     });
-    renderPeerDetails(lastStatus);
-}
-
-function renderPeerDetails(status) {
-    if (!selectedPeerId || !status) return;
-
-    var peer = status.peers.find(function(item) {
-        return item.id === selectedPeerId;
+    Object.keys(s.statuses || {}).forEach(function(id) {
+        ((s.statuses[id].status || {}).links || []).forEach(function(other) {
+            ids.add(other);
+            link(id, other);
+        });
     });
-    if (!peer) {
-        selectedPeerId = null;
-        document.getElementById("peerDetails").hidden = true;
-        return;
-    }
-
-    document.getElementById("detailId").textContent = peer.id;
-    document.getElementById("detailLastSeen").textContent = lastSeenHuman(peer.lastSeen);
+    return { ids: Array.from(ids).sort(), edges: Array.from(edges).sort() };
 }
 
-/* ---------- Tiny graph (local view) ---------- */
 function renderGraph(s) {
-    var svg = d3.select("#swarmGraph");
-    if (!svg.node()) return;
+    const svg = d3.select("#swarmGraph");
+    const topo = topology(s);
+    const sig = topo.ids.join(",") + "#" + topo.edges.join(",") + "#" + s.id;
+    if (sig !== graph.sig) buildGraph(s, topo, sig);
+    updateCards(s);
+}
 
-    var width = svg.node().clientWidth || 600;
-    var height = svg.node().clientHeight || 300;
-    svg.attr("viewBox", "0 0 " + width + " " + height);
+function buildGraph(s, topo, sig) {
+    const svg = d3.select("#swarmGraph");
+    const width = svg.node().clientWidth || 800;
+    const height = svg.node().clientHeight || 500;
 
-    if (graphSimulation) graphSimulation.stop();
+    if (graph.sim) graph.sim.stop();
     svg.selectAll("*").remove();
 
-    var viewport = svg.append("g").attr("transform", graphTransform);
-    var zoom = d3.zoom().scaleExtent([0.2, 4]).on("zoom", function(event) {
+    // Keep positions of cards that were already on screen
+    const old = new Map(graph.nodes.map(function(n) { return [n.id, n]; }));
+    graph.nodes = topo.ids.map(function(id, i) {
+        const prev = old.get(id);
+        if (prev) return { id: id, x: prev.x, y: prev.y };
+        const angle = i * 2.4;
+        return { id: id, x: width / 2 + Math.cos(angle) * 260, y: height / 2 + Math.sin(angle) * 220 };
+    });
+    graph.links = topo.edges.map(function(e) {
+        const parts = e.split("|");
+        return { source: parts[0], target: parts[1] };
+    });
+
+    graph.viewport = svg.append("g");
+    graph.viewport.attr("transform", graphTransform);
+    zoomBehavior = d3.zoom().scaleExtent([0.2, 3]).on("zoom", function(event) {
         graphTransform = event.transform;
-        viewport.attr("transform", graphTransform);
+        graph.viewport.attr("transform", graphTransform);
     });
-    svg.call(zoom).call(zoom.transform, graphTransform).on("dblclick.zoom", null);
+    svg.call(zoomBehavior).on("dblclick.zoom", null);
 
-    // Build a star: center bot -> each peer
-    var nodes = [{
-        id: s.id,
-        center: true
-    }];
-    for (var i = 0; i < s.peers.length; i++) nodes.push({
-        id: s.peers[i].id
-    });
-
-    var links = [];
-    for (var j = 0; j < s.peers.length; j++) links.push({
-        source: s.id,
-        target: s.peers[j].id
-    });
-
-    graphSimulation = d3.forceSimulation(nodes)
-        .force("link", d3.forceLink(links).id(function(d) {
-            return d.id;
-        }).distance(120))
-        .force("charge", d3.forceManyBody().strength(-300))
+    graph.sim = d3.forceSimulation(graph.nodes)
+        .force("link", d3.forceLink(graph.links).id(function(d) { return d.id; }).distance(380))
+        .force("charge", d3.forceManyBody().strength(-1500))
+        .force("collide", d3.forceCollide(150))
         .force("center", d3.forceCenter(width / 2, height / 2));
 
-    var link = viewport.append("g").attr("stroke", "#666").attr("stroke-opacity", 0.6)
-        .selectAll("line").data(links).enter().append("line").attr("class", "link");
+    graph.linkSel = graph.viewport.append("g").selectAll("line")
+        .data(graph.links).enter().append("line").attr("class", "link");
 
-    var node = viewport.append("g").selectAll("g").data(nodes).enter().append("g").attr("class", "node")
-        .call(d3.drag()
-            .on("start", function(event, d) {
-                if (!event.active) graphSimulation.alphaTarget(0.3).restart();
-                d.fx = d.x;
-                d.fy = d.y;
-            })
-            .on("drag", function(event, d) {
-                d.fx = event.x;
-                d.fy = event.y;
-            })
-            .on("end", function(event, d) {
-                if (!event.active) graphSimulation.alphaTarget(0);
-                d.fx = null;
-                d.fy = null;
-            }));
-    node.append("circle")
-        .attr("r", function(d) {
-            return d.center ? 12 : 9;
+    const drag = d3.drag()
+        .on("start", function(event, d) {
+            if (!event.active) graph.sim.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
         })
-        .attr("class", function(d) {
-            return d.center ? "alive" : "alive";
+        .on("drag", function(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
         })
-        .on("click", function(event, d) {
-            if (d.center) return;
-            selectPeer(d.id);
+        .on("end", function(event, d) {
+            if (!event.active) graph.sim.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
         });
 
-    node.append("text").attr("dy", ".31em").text(function(d) {
-        return d.id;
+    graph.nodeSel = graph.viewport.append("g").selectAll("g")
+        .data(graph.nodes, function(d) { return d.id; }).enter().append("g")
+        .attr("class", "node").call(drag)
+        .on("click", function(event, d) { selectNode(d.id); });
+
+    graph.nodeSel.each(function(d) {
+        const g = d3.select(this);
+        g.append("rect").attr("class", "card-bg").attr("width", CARD_W).attr("height", CARD_H).attr("rx", 10)
+            .attr("x", -CARD_W / 2).attr("y", -CARD_H / 2);
+        g.append("rect").attr("class", "card-head").attr("width", CARD_W).attr("height", HEAD_H).attr("rx", 10)
+            .attr("x", -CARD_W / 2).attr("y", -CARD_H / 2);
+        g.append("circle").attr("class", "dot").attr("r", 4).attr("cx", -CARD_W / 2 + 14).attr("cy", -CARD_H / 2 + HEAD_H / 2);
+        g.append("text").attr("class", "card-title").attr("x", -CARD_W / 2 + 26).attr("y", -CARD_H / 2 + HEAD_H / 2 + 4);
+        for (let i = 0; i < ROWS; i++) {
+            const y = -CARD_H / 2 + HEAD_H + i * ROW_H;
+            g.append("line").attr("class", "row-line").attr("x1", -CARD_W / 2).attr("x2", CARD_W / 2).attr("y1", y).attr("y2", y);
+            g.append("text").attr("class", "row-label row-label-" + i).attr("x", -CARD_W / 2 + 14).attr("y", y + 15);
+            g.append("text").attr("class", "row-value row-value-" + i).attr("x", CARD_W / 2 - 14).attr("y", y + 15);
+        }
     });
 
-    graphSimulation.on("tick", function() {
-        link
-            .attr("x1", function(d) {
-                return d.source.x;
-            })
-            .attr("y1", function(d) {
-                return d.source.y;
-            })
-            .attr("x2", function(d) {
-                return d.target.x;
-            })
-            .attr("y2", function(d) {
-                return d.target.y;
-            });
-        node.attr("transform", function(d) {
-            return "translate(" + d.x + "," + d.y + ")";
+    graph.sim.on("tick", function() {
+        graph.linkSel
+            .attr("x1", function(d) { return d.source.x; })
+            .attr("y1", function(d) { return d.source.y; })
+            .attr("x2", function(d) { return d.target.x; })
+            .attr("y2", function(d) { return d.target.y; });
+        graph.nodeSel.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
+    });
+
+    graph.sig = sig;
+}
+
+// Refreshes card text in place so live status does not reset the layout
+function updateCards(s) {
+    if (!graph.nodeSel) return;
+    graph.nodeSel.each(function(d) {
+        const g = d3.select(this);
+        const res = infoFor(s, d.id);
+        g.classed("self", d.id === s.id)
+            .classed("stale", !res.fresh)
+            .classed("selected", d.id === selectedId);
+        g.select(".card-title").text(d.id === s.id ? d.id + " (This Bot)" : d.id);
+        cardRows(res.info).forEach(function(row, i) {
+            g.select(".row-label-" + i).text(row[0]);
+            g.select(".row-value-" + i).text(row[1]);
         });
     });
 }
 
-/* ---------- Upload modal ---------- */
-function setupUpload() {
-    const modal = document.getElementById("uploadModal");
-    const zone = document.getElementById("dropZone");
-    const input = document.getElementById("fileInput");
+function updateGraphSize() {
+    if (!graph.sim) return;
+    const svg = d3.select("#swarmGraph");
+    graph.sim.force("center", d3.forceCenter(svg.node().clientWidth / 2, svg.node().clientHeight / 2)).alpha(0.2).restart();
+}
 
-    document.getElementById("openUploadBtn").addEventListener("click", function() {
-        modal.showModal();
-    });
-    document.getElementById("closeUploadBtn").addEventListener("click", function() {
-        modal.close();
-    });
-    modal.addEventListener("click", function(event) {
-        if (event.target === modal) modal.close();
+function selectNode(id) {
+    if (lastStatus && id === lastStatus.id) return;
+    selectedId = id;
+    const to = document.getElementById("to");
+    if (Array.from(to.options).some(function(o) { return o.value === id; })) to.value = id;
+    document.getElementById("messageCard").open = true;
+    document.getElementById("text").focus();
+    updateCards(lastStatus);
+}
+
+/* ---------- Messages ---------- */
+let messageSeq = null;
+
+function setupMessages() {
+    document.getElementById("sendBtn").addEventListener("click", sendMessage);
+    document.getElementById("text").addEventListener("keydown", function(event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+        }
     });
 
-    ["dragenter", "dragover"].forEach(function(type) {
-        zone.addEventListener(type, function(event) {
-            event.preventDefault();
-            zone.classList.add("dragging");
-        });
+    // The first call only learns the latest sequence so old messages are not replayed
+    q("/api/messages").then(function(res) {
+        messageSeq = res.seq;
+        setInterval(pollMessages, 1000);
+    }).catch(function() { });
+}
+
+function renderRecipients(s) {
+    const select = document.getElementById("to");
+    const ids = s.peers.map(function(p) { return p.id; }).filter(Boolean).join(",");
+    if (select.dataset.ids === ids) return;
+
+    const previous = select.value;
+    select.dataset.ids = ids;
+    select.replaceChildren(new Option("Everyone (Broadcast)", "*"));
+    s.peers.forEach(function(p) {
+        if (p.id) select.add(new Option(p.id, p.id));
     });
-    ["dragleave", "drop"].forEach(function(type) {
-        zone.addEventListener(type, function(event) {
-            event.preventDefault();
-            zone.classList.remove("dragging");
-        });
+    if (Array.from(select.options).some(function(o) { return o.value === previous; })) select.value = previous;
+}
+
+function sendMessage() {
+    const to = document.getElementById("to").value;
+    const input = document.getElementById("text");
+    const text = input.value.trim();
+    if (!text) return;
+
+    const request = to === "*"
+        ? q("/api/broadcast", { method: "POST", body: JSON.stringify({ msg: text }) })
+        : q("/api/dm", { method: "POST", body: JSON.stringify({ to: to, msg: text }) });
+
+    input.value = "";
+    request.then(function(res) {
+        if (res.delivered === false) toast("No Response", "From " + to, "error");
+    }).catch(function(err) {
+        toast("Message Failed", err.message, "error");
     });
-    zone.addEventListener("drop", function(event) {
+}
+
+function pollMessages() {
+    q("/api/messages?since=" + messageSeq).then(function(res) {
+        messageSeq = res.seq;
+        res.messages.forEach(function(m) {
+            const target = m.kind === "broadcast" ? "Everyone" : m.to;
+            const title = m.mine
+                ? "You To " + target
+                : "From " + m.from + (m.kind === "broadcast" ? " To Everyone" : "");
+            toast(title, m.text);
+        });
+    }).catch(function() { });
+}
+
+function toast(title, text, kind) {
+    const box = document.getElementById("toasts");
+    const t = el("div", "toast" + (kind ? " " + kind : ""));
+    t.append(el("div", "toast-from", title), el("div", "toast-text", text));
+    box.appendChild(t);
+    while (box.children.length > 5) box.firstChild.remove();
+    setTimeout(function() { t.remove(); }, 6000);
+}
+
+/* ---------- Files ---------- */
+function actionLink(label, url, disabled) {
+    const a = el("a", "small" + (disabled ? " disabled" : ""), label);
+    if (!disabled) a.href = url;
+    return a;
+}
+
+function setupFiles() {
+    const auto = document.getElementById("autoDownload");
+    auto.checked = localStorage.getItem("autoDownload") === "1";
+    auto.addEventListener("change", function() {
+        localStorage.setItem("autoDownload", auto.checked ? "1" : "0");
+    });
+
+    document.getElementById("fileInput").addEventListener("change", function() {
+        uploadFiles(this.files);
+        this.value = "";
+    });
+
+    // Dropping a file anywhere on the page uploads it
+    const overlay = document.getElementById("dropOverlay");
+    let depth = 0;
+    const hasFiles = function(event) {
+        return event.dataTransfer && Array.from(event.dataTransfer.types || []).indexOf("Files") !== -1;
+    };
+    window.addEventListener("dragenter", function(event) {
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        depth++;
+        document.getElementById("dropMode").textContent = auto.checked
+            ? "All bots will be told to download it"
+            : "Saved here and the torrent is shared";
+        document.getElementById("filesCard").open = true;
+        overlay.hidden = false;
+    });
+    window.addEventListener("dragover", function(event) {
+        if (hasFiles(event)) event.preventDefault();
+    });
+    window.addEventListener("dragleave", function(event) {
+        if (!hasFiles(event)) return;
+        depth = Math.max(0, depth - 1);
+        if (depth === 0) overlay.hidden = true;
+    });
+    window.addEventListener("drop", function(event) {
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        depth = 0;
+        overlay.hidden = true;
         uploadFiles(event.dataTransfer.files);
     });
-    input.addEventListener("change", function() {
-        uploadFiles(input.files);
-        input.value = "";
-    });
+
+    loadFiles();
+    setInterval(loadFiles, 2000);
 }
 
 function uploadFiles(files) {
@@ -392,45 +386,102 @@ function uploadFiles(files) {
 }
 
 function uploadFile(file) {
-    const item = document.createElement("li");
-    const name = document.createElement("span");
-    name.className = "upload-name";
-    name.textContent = file.name;
-    const state = document.createElement("span");
-    state.className = "upload-state";
-    state.textContent = "0%";
-    const bar = document.createElement("progress");
-    bar.max = 100;
-    bar.value = 0;
-    item.append(name, state, bar);
-    document.getElementById("uploadList").prepend(item);
+    const list = document.getElementById("uploadList");
+    const item = el("li", "upload-item");
+    const state = el("span", "file-meta", "Uploading");
+    const bar = el("div", "bar");
+    const fill = el("div");
+    fill.style.width = "0%";
+    bar.appendChild(fill);
+    item.append(el("span", "file-name", file.name), state, bar);
+    list.appendChild(item);
 
-    const fail = function(message) {
-        item.classList.add("failed");
-        state.textContent = message;
+    const finish = function(text, failed) {
+        state.textContent = text;
+        if (failed) state.style.color = "var(--danger)";
+        setTimeout(function() { item.remove(); }, failed ? 6000 : 2500);
+        loadFiles();
     };
 
-    // Sending the File itself lets the browser stream it from disk
+    const download = document.getElementById("autoDownload").checked ? "&download=1" : "";
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/upload?name=" + encodeURIComponent(file.name));
-    xhr.setRequestHeader("content-type", "application/octet-stream");
+    xhr.open("POST", "/api/upload?name=" + encodeURIComponent(file.name) + download);
     xhr.upload.onprogress = function(event) {
-        if (!event.lengthComputable) return;
-        const pct = Math.round((event.loaded / event.total) * 100);
-        bar.value = pct;
-        state.textContent = pct + "%";
+        if (event.lengthComputable) fill.style.width = (event.loaded / event.total * 100) + "%";
     };
     xhr.onload = function() {
         let res = {};
-        try { res = JSON.parse(xhr.responseText); } catch (e) { /* non-JSON error */ }
-        if (xhr.status === 200 && res.ok) {
-            bar.value = 100;
-            item.classList.add("done");
-            state.textContent = res.duplicate ? "Already Stored" : "Done";
-        } else {
-            fail(res.error || "Failed");
-        }
+        try { res = JSON.parse(xhr.responseText); } catch (e) { /* not json */ }
+        if (xhr.status === 200) finish(res.duplicate ? "Already Stored" : "Done", false);
+        else finish(res.error || "Upload Failed", true);
     };
-    xhr.onerror = function() { fail("Failed"); };
+    xhr.onerror = function() { finish("Upload Failed", true); };
     xhr.send(file);
+}
+
+function loadFiles() {
+    q("/api/uploads").then(function(res) {
+        const list = document.getElementById("fileList");
+        list.replaceChildren();
+        res.files.forEach(function(f) { list.appendChild(fileItem(f)); });
+        document.getElementById("filesCount").textContent = res.files.length;
+        document.getElementById("filesEmpty").hidden = res.files.length > 0;
+    }).catch(function() { });
+}
+
+function progressText(f) {
+    const sw = f.swarm;
+    if (!sw) return f.have ? "Complete" : "Torrent Only";
+    if (sw.complete) return "Complete";
+    return sw.have + " / " + sw.total + " Chunks";
+}
+
+function fileItem(f) {
+    const sw = f.swarm;
+    const item = el("li", "file-item");
+
+    const head = el("div", "file-head");
+    head.append(el("span", "file-name", f.name), el("span", "file-meta", formatSize(f.size)));
+    item.appendChild(head);
+
+    const peers = sw ? " · " + sw.peers + " With Chunks · " + sw.seeds + " Complete" : "";
+    item.appendChild(el("div", "file-meta", progressText(f) + peers));
+
+    if (sw && !sw.complete && sw.total > 0) {
+        const bar = el("div", "bar");
+        const fill = el("div");
+        fill.style.width = (sw.have / sw.total * 100) + "%";
+        bar.appendChild(fill);
+        item.appendChild(bar);
+    }
+
+    const actions = el("div", "file-actions");
+    actions.append(
+        actionLink("Download", "/api/download?hash=" + f.hash, !f.have),
+        actionLink("Torrent", "/api/download-torrent?hash=" + f.hash)
+    );
+
+    const label = el("label", "toggle");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = !!(sw && sw.enabled);
+    box.addEventListener("change", function() {
+        box.disabled = true;
+        q("/api/swarm?hash=" + f.hash + "&on=" + (box.checked ? "1" : "0"), { method: "POST" })
+            .catch(function(err) { toast("Swarm Failed", err.message, "error"); box.checked = !box.checked; })
+            .then(function() { box.disabled = false; });
+    });
+    label.append(box, document.createTextNode("Download On All Bots"));
+    actions.appendChild(label);
+
+    const del = el("button", "secondary small", "Delete");
+    del.addEventListener("click", function() {
+        if (!confirm("Delete " + f.name + "?")) return;
+        q("/api/uploads?hash=" + f.hash, { method: "DELETE" }).then(loadFiles)
+            .catch(function(err) { toast("Delete Failed", err.message, "error"); });
+    });
+    actions.appendChild(del);
+
+    item.appendChild(actions);
+    return item;
 }

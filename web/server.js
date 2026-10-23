@@ -19,10 +19,29 @@ class SERVER {
         this.app.use(express.json());
         this.app.use(express.static(path.join(__dirname, "public")));
 
-        this.app.get("/api/status", (req, res) => {
-            const snap = this.state.getStatus();
+        this.app.get("/api/status", async (req, res) => {
+            const self = await this.state.getFullStatus();
             const peers = this.state.getAllPeers();
-            res.json({ snap, peers, id: state.botId });
+            const statuses = Object.fromEntries(this.state.peerStatus);
+            res.json({ snap: self, self, peers, statuses, id: state.botId });
+        });
+
+        // Messages since a sequence number; without one it only reports the latest sequence
+        this.app.get("/api/messages", (req, res) => {
+            const since = parseInt(req.query.since, 10);
+            const messages = Number.isNaN(since) ? [] : this.state.getMessagesSince(since);
+            res.json({ seq: this.state.messageSeq, messages });
+        });
+
+        this.app.post("/api/broadcast", (req, res) => {
+            const text = String(req.body && req.body.msg || "").trim();
+            if (!text) return res.status(400).json({ error: "message is empty" });
+
+            const packet = this.gstp.mkBROADCAST("chat", { text });
+            this.state.markSeen(packet.id);
+            for (const c of this.state.connections.values()) c.send(packet);
+            this.state.addMessage({ kind: "broadcast", from: this.state.botId, to: null, topic: "chat", text, mine: true });
+            res.json({ ok: true });
         });
 
 
@@ -55,6 +74,8 @@ class SERVER {
                     this.state.markSeen(packet.id);
                     for (const conn of this.state.connections.values()) conn.send(packet);
                 }
+                // Optionally tell every bot to start downloading it straight away
+                if (req.query.download === "1") await this.state.swarm.setEnabled(hash, true);
                 res.json({ ok: true, name, hash, duplicate, bytes: torrent.info.size });
             } catch (err) {
                 fs.promises.unlink(tmpPath).catch(() => { });
@@ -142,7 +163,7 @@ class SERVER {
                 return res.status(400).json({ error: "peer not found" });
             }
 
-            const packet = this.gstp.mkDM(to, "message", { text: msg }, 8);
+            const packet = this.gstp.mkDM(to, { text: msg });
 
             let timeoutHandle = null;
             const p = new Promise((resolve) => {
@@ -161,8 +182,10 @@ class SERVER {
             conn.send(packet);
             console.log("Sent DM to", to, "with id", packet.id);
 
+            this.state.addMessage({ kind: "dm", from: this.state.botId, to, text: msg, mine: true });
+
             const reply = await p;
-            res.json({ ok: true, reply });
+            res.json({ ok: true, delivered: !reply.timeout });
         });
 
 

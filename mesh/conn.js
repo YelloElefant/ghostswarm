@@ -126,26 +126,51 @@ class conn {
 
         // DM - Direct message
         if (msg && msg.t === T.DM) {
-            console.log(`[DM] Received from ${msg.src}, to=${msg.body?.to}, local bot=${this.state.botId}`);
             if (msg.src && msg.body?.to === this.state.botId) {
-                console.log(`[DM] Processing locally, sending MD response for id=${msg.id}`);
-                const response = this.gstp.mkMD(msg.id, { text: "Received your DM loud and clear!" });
-                console.log(`[DM] Response packet:`, response);
-                this.send(response);
-            } else {
-                console.log(`[DM] Not for us or invalid, skipping`);
+                const data = msg.body.data;
+                this.state.addMessage({
+                    kind: "dm",
+                    from: msg.src,
+                    to: this.state.botId,
+                    text: data && typeof data === "object" ? String(data.text ?? "") : String(data ?? "")
+                });
+                this.send(this.gstp.mkMD(msg.id, { text: "Received your DM loud and clear!" }));
             }
             return;
         }
 
-        // STATUS - Peer asks for our status
+        // BROADCAST - Flooded to everyone once, shown locally
+        if (msg && msg.t === T.BROADCAST) {
+            if (this.state.hasSeen(msg.id)) return;
+            this.state.markSeen(msg.id);
+            const data = body.data;
+            this.state.addMessage({
+                kind: "broadcast",
+                from: msg.src,
+                to: null,
+                topic: body.topic,
+                text: data && typeof data === "object" ? String(data.text ?? "") : String(data ?? "")
+            });
+            if (msg.ttl > 1) {
+                const fwd = Object.assign({}, msg, { ttl: msg.ttl - 1 });
+                for (const [rid, c] of this.state.connections) {
+                    if (rid !== this.remoteId) c.send(fwd);
+                }
+            }
+            return;
+        }
+
+        // STATUS - Peer asks for our status (also sent on a timer as a heartbeat)
         if (msg && msg.t === T.STATUS) {
-            this.send(this.gstp.mkSUTATS(msg.id, this.state.getStatus()));
+            this.state.getFullStatus()
+                .catch(() => this.state.getStatus())
+                .then((status) => this.send(this.gstp.mkSUTATS(msg.id, status)));
             return;
         }
 
         // SUTATS - Status reply, resolves the pending STATUS request
         if (msg && msg.t === T.SUTATS) {
+            if (this.remoteId && body.status) this.state.setPeerStatus(this.remoteId, body.status);
             const waiter = this.state.getPending(msg.rid);
             if (waiter) {
                 clearTimeout(waiter.timeoutHandle || (waiter.resolve && waiter.resolve.timeoutHandle));

@@ -46,6 +46,7 @@ class Swarm {
         this.entries = new Map();
         this.loading = new Map();
         this.peerHave = new Map();
+        this.chain = Promise.resolve();
         this.requests = new Map(); // request id -> { hash, index, peer, timer }
 
         this.timer = setInterval(() => this.tick().catch(() => { }), TICK_MS);
@@ -129,6 +130,23 @@ class Swarm {
         await Promise.all([this.partPath(hash), this.metaPath(hash)].map((p) => fs.promises.unlink(p).catch(() => { })));
     }
 
+    // Counts for the status heartbeat: torrents known, fully held, and downloading
+    async summary() {
+        const out = { total: 0, complete: 0, downloading: 0 };
+        let files;
+        try { files = await fs.promises.readdir(this.torrentDir); } catch (e) { return out; }
+        for (const f of files) {
+            const hash = f.slice(0, -tor.TORRENT_EXT.length);
+            if (!f.endsWith(tor.TORRENT_EXT) || !tor.HASH_RE.test(hash)) continue;
+            const e = await this.ensure(hash);
+            if (!e) continue;
+            out.total++;
+            if (e.complete) out.complete++;
+            else if (e.enabled) out.downloading++;
+        }
+        return out;
+    }
+
     // Local view of a torrent for the dashboard
     async info(hash) {
         const e = await this.ensure(hash);
@@ -157,7 +175,12 @@ class Swarm {
             [T.TEG]: () => this.onTeg(msg, conn)
         }[msg && msg.t];
         if (!work) return false;
-        Promise.resolve().then(work).catch(() => { });
+        // Torrent, swarm and have packets run in order so a SWARM never overtakes the TORRENT it refers to
+        if (msg.t === T.TORRENT || msg.t === T.SWARM || msg.t === T.HAVE) {
+            this.chain = this.chain.then(work).catch(() => { });
+        } else {
+            Promise.resolve().then(work).catch(() => { });
+        }
         return true;
     }
 
