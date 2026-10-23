@@ -476,7 +476,7 @@ function fileItem(f) {
 
     const del = el("button", "secondary small", "Delete");
     del.addEventListener("click", function() {
-        if (!confirm("Delete " + f.name + "?")) return;
+        if (!confirm("Delete " + f.name + " from all bots?")) return;
         q("/api/uploads?hash=" + f.hash, { method: "DELETE" }).then(loadFiles)
             .catch(function(err) { toast("Delete Failed", err.message, "error"); });
     });

@@ -171,12 +171,13 @@ class Swarm {
             [T.TORRENT]: () => this.onTorrent(msg, conn),
             [T.SWARM]: () => this.onSwarm(msg, conn),
             [T.HAVE]: () => this.onHave(msg, conn),
+            [T.DEL]: () => this.onDel(msg, conn),
             [T.GET]: () => this.onGet(msg, conn),
             [T.TEG]: () => this.onTeg(msg, conn)
         }[msg && msg.t];
         if (!work) return false;
         // Torrent, swarm and have packets run in order so a SWARM never overtakes the TORRENT it refers to
-        if (msg.t === T.TORRENT || msg.t === T.SWARM || msg.t === T.HAVE) {
+        if (msg.t === T.TORRENT || msg.t === T.SWARM || msg.t === T.HAVE || msg.t === T.DEL) {
             this.chain = this.chain.then(work).catch(() => { });
         } else {
             Promise.resolve().then(work).catch(() => { });
@@ -227,6 +228,27 @@ class Swarm {
             for (const c of this.state.connections.values()) c.send(packet);
         }
         return true;
+    }
+
+    // Removes a torrent and its file from this bot, optionally telling every other bot
+    async remove(hash, propagate = true) {
+        await this.forget(hash);
+        let err = null;
+        try { await tor.deleteTorrent(hash); } catch (e) { err = e; }
+        if (propagate) {
+            const packet = this.gstp.mkDEL(hash);
+            this.state.markSeen(packet.id);
+            for (const c of this.state.connections.values()) c.send(packet);
+        }
+        if (err && err.code !== "ENOENT") throw err;
+        return !err;
+    }
+
+    async onDel(msg, conn) {
+        if (!this.firstSight(msg)) return;
+        const hash = msg.body && msg.body.hash;
+        if (typeof hash === "string" && /^[0-9a-f]{64}$/.test(hash)) await this.remove(hash, false).catch(() => { });
+        this.flood(msg, conn.remoteId);
     }
 
     async onSwarm(msg, conn) {

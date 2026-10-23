@@ -102,12 +102,13 @@ class SERVER {
         this.app.get("/api/download", sendStored(false));
         this.app.get("/api/download-torrent", sendStored(true));
 
-        // Removes the file (if held) and its torrent together
+        // Removes the file and its torrent from this bot and every other bot
         const removeStored = async (req, res) => {
             try {
                 const hash = String(req.query.hash || "");
-                await this.state.swarm.forget(hash);
-                await tor.deleteTorrent(hash);
+                if (!/^[0-9a-f]{64}$/.test(hash)) return res.status(400).json({ error: "invalid hash" });
+                const found = await this.state.swarm.remove(hash);
+                if (!found) return res.status(404).json({ error: "not found" });
                 res.json({ ok: true });
             } catch (err) {
                 const status = err.code === "EINVAL" ? 400 : err.code === "ENOENT" ? 404 : 500;
