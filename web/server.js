@@ -19,6 +19,36 @@ class SERVER {
         });
 
         
+        this.app.post("/api/peer-status", async (req, res) => {
+            const to = req.body && req.body.to ? req.body.to : "";
+            const conn = this.state.getConnection(to);
+            if (!conn) {
+                return res.status(400).json({ error: "peer not found" });
+            }
+
+            const packet = this.gstp.mkSTATUS();
+
+            let timeoutHandle = null;
+            const p = new Promise((resolve) => {
+                timeoutHandle = setTimeout(() => {
+                    if (this.state.getPending(packet.id)) {
+                        this.state.removePending(packet.id);
+                        resolve({ timeout: true, error: "No response" });
+                    }
+                }, 3000);
+                this.state.addPending(packet.id, { resolve, timeoutHandle });
+            });
+
+            this.state.markSeen(packet.id);
+            conn.send(packet);
+
+            const reply = await p;
+            if (reply.timeout) {
+                return res.status(504).json({ error: reply.error });
+            }
+            res.json({ ok: true, status: reply.body ? reply.body.status : null });
+        });
+
         this.app.post("/api/dm", async (req, res) => {
             const to = req.body && req.body.to ? req.body.to : "";
             const msg = req.body && req.body.msg ? req.body.msg : "";

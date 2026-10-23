@@ -19,81 +19,87 @@
             </div>
             <span id="ghostswarm">GhostSwarm</span>
         </div>
-        <div id="botBadge">
-            <div>
-                <svg width="12" height="12">
-                    <circle cx="6" cy="6" r="5" fill="#4caf50" />
-                </svg>
-            </div>
-            <div id="botStatus">
-                Connected
-            </div>
-            <div id="botId"></div>
+        <div id="botBadge" class="online">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="botStatus">Connecting</span>
+            <span id="botId"></span>
         </div>
     </header>
-    <p class="muted" id="subtitle"></p>
+    <main class="dashboard">
+        <aside id="sidebar" aria-label="Swarm controls">
+            <section class="sidebar-section">
+                <div class="section-heading">
+                    <h2>Peers</h2>
+                    <span id="peerCount" class="count-badge">0</span>
+                </div>
+                <div id="peerList" class="peer-list" aria-live="polite"></div>
+                <div id="peerDetails" class="peer-details" hidden>
+                    <div class="section-heading">
+                        <h3>Peer Details</h3>
+                        <button id="closePeerDetails" class="icon-button" aria-label="Close peer details">×</button>
+                    </div>
+                    <dl>
+                        <dt>Peer ID</dt>
+                        <dd id="detailId"></dd>
+                        <dt>Last seen</dt>
+                        <dd id="detailLastSeen"></dd>
+                    </dl>
+                    <button id="messagePeerBtn" class="secondary full-width">Message this peer</button>
+                </div>
+            </section>
 
-    <div class="grid">
-        <details class="card" open>
-            <summary><h3>Peers</h3></summary>
-            <div class="card-content">
-                <table id="peers">
-                    <thead>
-                        <tr>
-                            <th>Peer</th>
-                            <th>Last seen</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </details>
+            <section class="sidebar-section">
+                <h2>Bot Status</h2>
+                <label for="statusTarget">Bot</label>
+                <select id="statusTarget" aria-label="Bot to check"></select>
+                <button id="getStatusBtn" class="full-width">Get Status</button>
+                <div id="statusResult" class="status-result" aria-live="polite"></div>
+            </section>
 
-        <details class="card" open>
-            <summary><h3>Send Broadcast</h3></summary>
-            <div class="card-content">
-                <div class="row">
-                    <input id="topic" aria-label="Broadcast topic" placeholder="Topic" value="chat" list="topicOptions">
-                    <datalist id="topicOptions">
-                        <option value="chat"></option>
-                    </datalist>
-                    <input id="data" aria-label="Broadcast message" placeholder="Message">
-                    <button id="sendBlastBtn">Send</button>
-                </div>
-            </div>
-        </details>
+            <section class="sidebar-section">
+                <h2>Send Broadcast</h2>
+                <label for="topic">Topic</label>
+                <input id="topic" placeholder="Topic" value="chat" list="topicOptions">
+                <datalist id="topicOptions">
+                    <option value="chat"></option>
+                </datalist>
+                <label for="data">Message</label>
+                <input id="data" placeholder="Message">
+                <button id="sendBlastBtn" class="full-width">Send Broadcast</button>
+            </section>
 
-        <details class="card" open>
-            <summary><h3>Send Direct Message</h3></summary>
-            <div class="card-content">
-                <div class="row">
-                    <select id="to" aria-label="Recipient bot">
-                        <option value="">Select a peer</option>
-                    </select>
-                    <select id="op" aria-label="Message type">
-                        <option value="message">Message</option>
-                    </select>
-                </div>
-                <div class="row" style="margin-top:8px;">
-                    <textarea id="json" aria-label="Message data in JSON format" rows="4" placeholder='{"foo":1}'></textarea>
-                </div>
-                <div class="row" style="margin-top:8px;">
-                    <button id="sendDmBtn">Send</button>
-                </div>
-                <pre id="dmResult" class="muted"></pre>
-            </div>
-        </details>
+            <section class="sidebar-section">
+                <h2>Send Direct Message</h2>
+                <label for="to">Recipient</label>
+                <select id="to" aria-label="Recipient bot">
+                    <option value="">Select a peer</option>
+                </select>
+                <label for="op">Message type</label>
+                <select id="op" aria-label="Message type">
+                    <option value="message">Message</option>
+                </select>
+                <label for="json">Message</label>
+                <textarea id="json" rows="4" placeholder="Type a message"></textarea>
+                <button id="sendDmBtn" class="full-width">Send Message</button>
+                <pre id="dmResult" class="muted" aria-live="polite"></pre>
+            </section>
+        </aside>
 
-        <details class="card" open>
-            <summary><h3>Swarm Graph</h3></summary>
-            <div class="card-content">
-                <div id="graphWrapper">
-                    <svg id="swarmGraph"></svg>
+        <section class="graph-stage" aria-label="Swarm graph">
+            <div class="graph-toolbar">
+                <button id="sidebarToggle" class="icon-button" aria-label="Hide sidebar" aria-expanded="true">
+                    <i class="material-icons" aria-hidden="true">menu</i>
+                </button>
+                <div>
+                    <h1>Swarm Graph</h1>
+                    <p id="graphSummary" class="muted">Connecting to swarm…</p>
                 </div>
             </div>
-        </details>
-    </div>
+            <div id="graphWrapper">
+                <svg id="swarmGraph" role="img" aria-label="Interactive graph of this bot and connected peers"></svg>
+            </div>
+        </section>
+    </main>
 
     <script src="lib.js"></script>
     <script src="script.js"></script>

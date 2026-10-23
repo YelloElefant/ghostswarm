@@ -137,6 +137,24 @@ class conn {
             return;
         }
 
+        // STATUS - Peer asks for our status
+        if (msg && msg.t === T.STATUS) {
+            this.send(this.gstp.mkSUTATS(msg.id, this.state.getStatus()));
+            return;
+        }
+
+        // SUTATS - Status reply, resolves the pending STATUS request
+        if (msg && msg.t === T.SUTATS) {
+            const waiter = this.state.getPending(msg.rid);
+            if (waiter) {
+                clearTimeout(waiter.timeoutHandle || (waiter.resolve && waiter.resolve.timeoutHandle));
+                const resolveFn = typeof waiter.resolve === 'function' ? waiter.resolve : waiter.resolve?.resolve;
+                if (resolveFn) resolveFn(msg);
+                this.state.removePending(msg.rid);
+            }
+            return;
+        }
+
         if (msg && msg.t === T.MD) {
             console.log(`[MD] Received response for msg id=${msg.rid}`);
             const waiter = this.state.getPending(msg.rid);
