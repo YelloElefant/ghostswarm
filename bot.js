@@ -12,10 +12,12 @@ const STATE = require("./state");
 const GSTP = require("./lib/GSTP");
 const MESH = require("./mesh/mesh");
 const SERVER = require("./web/server");
+const { Swarm } = require("./tor/swarm");
 
 // Initialize
 const gstp = new GSTP(config.BOT_ID, config.TCP_PORT);
 const state = new STATE(config.BOT_ID);
+state.swarm = new Swarm(state, gstp);
 const mesh = new MESH(config, state, gstp);
 const server = new SERVER(config.HTTP_PORT, state, gstp);
 

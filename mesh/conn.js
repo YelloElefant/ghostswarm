@@ -156,19 +156,8 @@ class conn {
             return;
         }
 
-        // TORRENT - A torrent file announced by a peer; keep it and flood it onwards
-        if (msg && msg.t === T.TORRENT) {
-            if (this.state.hasSeen(msg.id)) return;
-            this.state.markSeen(msg.id);
-            tor.saveTorrent(msg.body && msg.body.torrent).catch(() => { });
-            if (msg.ttl > 1) {
-                const fwd = Object.assign({}, msg, { ttl: msg.ttl - 1 });
-                for (const [rid, c] of this.state.connections) {
-                    if (rid !== this.remoteId) c.send(fwd);
-                }
-            }
-            return;
-        }
+        // Torrent sharing packets (TORRENT, SWARM, HAVE, GET, TEG) are handled by the swarm
+        if (msg && this.state.swarm && this.state.swarm.handle(msg, this)) return;
 
         // LIST - Peer asks which torrents we hold
         if (msg && msg.t === T.LIST) {

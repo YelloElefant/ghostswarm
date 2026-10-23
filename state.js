@@ -50,6 +50,7 @@ class STATE {
 
     addConnection(id, conn) {
         this.connections.set(id, conn);
+        if (this.onConnect) this.onConnect(id, conn);
     }
     
     addKnown(addr) {

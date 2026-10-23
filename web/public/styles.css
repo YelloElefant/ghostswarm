@@ -29,7 +29,12 @@ body {
     flex-direction: column;
     color: var(--text);
     background: var(--bg);
-    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    font:
+        15px/1.5 -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        sans-serif;
 }
 
 button,
@@ -71,9 +76,9 @@ header {
     display: grid;
     flex: 0 0 auto;
     place-items: center;
-    border: 1px solid rgba(70, 214, 164, .28);
+    border: 1px solid rgba(70, 214, 164, 0.28);
     border-radius: 11px;
-    background: rgba(70, 214, 164, .09);
+    background: rgba(70, 214, 164, 0.09);
 }
 
 #network-icon {
@@ -86,7 +91,7 @@ header {
     color: var(--text);
     font-size: 1.08rem;
     font-weight: 700;
-    letter-spacing: -.025em;
+    letter-spacing: -0.025em;
     text-overflow: ellipsis;
 }
 
@@ -96,18 +101,18 @@ header {
     align-items: center;
     gap: 8px;
     padding: 7px 14px;
-    border: 1px solid rgba(240, 139, 139, .3);
+    border: 1px solid rgba(240, 139, 139, 0.3);
     border-radius: 999px;
-    background: rgba(240, 139, 139, .08);
+    background: rgba(240, 139, 139, 0.08);
     color: var(--danger);
-    font-size: .78rem;
+    font-size: 0.78rem;
     font-weight: 600;
     line-height: 1;
 }
 
 #botBadge.online {
-    border-color: rgba(70, 214, 164, .28);
-    background: rgba(70, 214, 164, .08);
+    border-color: rgba(70, 214, 164, 0.28);
+    background: rgba(70, 214, 164, 0.08);
     color: var(--primary);
 }
 
@@ -129,7 +134,7 @@ header {
     border-left: 1px solid var(--border);
     color: var(--text);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: .72rem;
+    font-size: 0.72rem;
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -142,7 +147,7 @@ header {
 .status-result {
     margin-top: 12px;
     color: var(--text-muted);
-    font-size: .76rem;
+    font-size: 0.76rem;
 }
 
 .status-card {
@@ -156,7 +161,7 @@ header {
     display: block;
     overflow-wrap: anywhere;
     color: var(--text);
-    font-size: .78rem;
+    font-size: 0.78rem;
 }
 
 .status-card dl {
@@ -192,7 +197,9 @@ header {
     overflow-y: auto;
     border-right: 1px solid var(--border);
     background: var(--surface);
-    transition: width .2s ease, flex-basis .2s ease;
+    transition:
+        width 0.2s ease,
+        flex-basis 0.2s ease;
 }
 
 #sidebar.collapsed {
@@ -211,7 +218,7 @@ header {
 .sidebar-section h3 {
     margin: 0;
     color: var(--text);
-    font-size: .9rem;
+    font-size: 0.9rem;
     font-weight: 650;
 }
 
@@ -228,7 +235,7 @@ header {
     border: 1px solid var(--border);
     border-radius: 999px;
     color: var(--text-muted);
-    font-size: .72rem;
+    font-size: 0.72rem;
     text-align: center;
 }
 
@@ -266,14 +273,14 @@ header {
     width: 100%;
     overflow: hidden;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: .76rem;
+    font-size: 0.76rem;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .peer-last-seen {
     color: var(--text-muted);
-    font-size: .7rem;
+    font-size: 0.7rem;
 }
 
 .peer-details {
@@ -291,21 +298,21 @@ header {
 .peer-details dt {
     margin-top: 8px;
     color: var(--text-muted);
-    font-size: .7rem;
+    font-size: 0.7rem;
 }
 
 .peer-details dd {
     margin: 2px 0 0;
     overflow-wrap: anywhere;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: .76rem;
+    font-size: 0.76rem;
 }
 
 label {
     margin: 13px 0 5px;
     display: block;
     color: var(--text-muted);
-    font-size: .74rem;
+    font-size: 0.74rem;
     font-weight: 550;
 }
 
@@ -319,8 +326,10 @@ textarea {
     border-radius: 8px;
     outline: none;
     background: #0d1513;
-    font-size: .82rem;
-    transition: border-color .16s ease, box-shadow .16s ease;
+    font-size: 0.82rem;
+    transition:
+        border-color 0.16s ease,
+        box-shadow 0.16s ease;
 }
 
 textarea {
@@ -338,7 +347,7 @@ input:focus,
 select:focus,
 textarea:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(70, 214, 164, .12);
+    box-shadow: 0 0 0 3px rgba(70, 214, 164, 0.12);
 }
 
 button {
@@ -349,9 +358,11 @@ button {
     background: var(--primary);
     color: #092018;
     cursor: pointer;
-    font-size: .79rem;
+    font-size: 0.79rem;
     font-weight: 650;
-    transition: background .16s ease, border-color .16s ease;
+    transition:
+        background 0.16s ease,
+        border-color 0.16s ease;
 }
 
 button:hover {
@@ -360,7 +371,7 @@ button:hover {
 }
 
 button:focus-visible {
-    outline: 3px solid rgba(70, 214, 164, .35);
+    outline: 3px solid rgba(70, 214, 164, 0.35);
     outline-offset: 2px;
 }
 
@@ -407,21 +418,21 @@ button.secondary:hover,
     display: flex;
     align-items: center;
     gap: 14px;
-    border-bottom: 1px solid rgba(150, 170, 162, .12);
-    background: rgba(18, 27, 25, .85);
+    border-bottom: 1px solid rgba(150, 170, 162, 0.12);
+    background: rgba(18, 27, 25, 0.85);
 }
 
 .graph-toolbar h1 {
     margin: 0;
     color: var(--text);
-    font-size: .95rem;
+    font-size: 0.95rem;
     font-weight: 650;
 }
 
 .graph-toolbar p {
     margin: 1px 0 0;
     color: var(--text-muted);
-    font-size: .72rem;
+    font-size: 0.72rem;
 }
 
 #graphWrapper {
@@ -431,7 +442,10 @@ button.secondary:hover,
     flex: 1;
     overflow: hidden;
     background-color: #0b1110;
-    background-image: radial-gradient(rgba(150, 170, 162, .16) .8px, transparent .8px);
+    background-image: radial-gradient(
+        rgba(150, 170, 162, 0.16) 0.8px,
+        transparent 0.8px
+    );
     background-size: 24px 24px;
 }
 
@@ -445,7 +459,7 @@ button.secondary:hover,
 
 #swarmGraph .link {
     stroke: #42675a;
-    stroke-opacity: .72;
+    stroke-opacity: 0.72;
     stroke-width: 1.5px;
 }
 
@@ -461,7 +475,7 @@ button.secondary:hover,
 
 #swarmGraph .node circle.alive {
     fill: var(--primary);
-    stroke: rgba(70, 214, 164, .25);
+    stroke: rgba(70, 214, 164, 0.25);
     stroke-width: 5px;
     cursor: pointer;
 }
@@ -478,7 +492,7 @@ button.secondary:hover,
 #dmResult {
     max-height: 140px;
     overflow: auto;
-    font-size: .72rem;
+    font-size: 0.72rem;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
@@ -489,7 +503,7 @@ button.secondary:hover,
         inset: 64px auto 0 0;
         width: min(340px, calc(100vw - 56px));
         flex-basis: min(340px, calc(100vw - 56px));
-        box-shadow: 12px 0 32px rgba(0, 0, 0, .32);
+        box-shadow: 12px 0 32px rgba(0, 0, 0, 0.32);
     }
 
     #sidebar.collapsed {
@@ -517,7 +531,7 @@ button.secondary:hover,
     #botBadge {
         gap: 5px;
         padding: 5px 8px;
-        font-size: .65rem;
+        font-size: 0.65rem;
     }
 
     #botId {
@@ -528,7 +542,7 @@ button.secondary:hover,
     *,
     *::before,
     *::after {
-        transition-duration: .01ms !important;
+        transition-duration: 0.01ms !important;
     }
 }
 
@@ -560,7 +574,7 @@ button.secondary:hover,
 }
 
 #uploadModal::backdrop {
-    background: rgba(5, 9, 8, .7);
+    background: rgba(5, 9, 8, 0.7);
 }
 
 .modal-header {
@@ -587,15 +601,17 @@ button.secondary:hover,
     background: #0d1513;
     color: var(--text);
     cursor: pointer;
-    font-size: .85rem;
+    font-size: 0.85rem;
     text-align: center;
-    transition: border-color .16s ease, background .16s ease;
+    transition:
+        border-color 0.16s ease,
+        background 0.16s ease;
 }
 
 .drop-zone:hover,
 .drop-zone.dragging {
     border-color: var(--primary);
-    background: rgba(70, 214, 164, .06);
+    background: rgba(70, 214, 164, 0.06);
 }
 
 .drop-zone .material-icons {
@@ -617,7 +633,7 @@ button.secondary:hover,
     grid-template-columns: 1fr auto;
     gap: 4px 12px;
     border-top: 1px solid var(--border);
-    font-size: .78rem;
+    font-size: 0.78rem;
 }
 
 .upload-name {
@@ -655,10 +671,12 @@ a.button {
     border-radius: 8px;
     background: var(--surface-raised);
     color: var(--text);
-    font-size: .79rem;
+    font-size: 0.79rem;
     font-weight: 650;
     text-decoration: none;
-    transition: border-color .16s ease, color .16s ease;
+    transition:
+        border-color 0.16s ease,
+        color 0.16s ease;
 }
 
 a.button:hover {
@@ -677,9 +695,10 @@ a.button .material-icons {
 }
 
 .page {
-    width: min(960px, 100%);
+    width: 100%;
+    box-sizing: border-box;
     min-height: 0;
-    margin: 0 auto;
+    margin: 0;
     padding: 24px 20px;
     flex: 1;
     overflow-y: auto;
@@ -700,7 +719,7 @@ a.button .material-icons {
 
 .page-heading p {
     margin: 2px 0 0;
-    font-size: .78rem;
+    font-size: 0.78rem;
 }
 
 .table-wrap {
@@ -720,13 +739,13 @@ a.button .material-icons {
 .data-table td {
     padding: 11px 16px;
     border-bottom: 1px solid var(--border);
-    font-size: .82rem;
+    font-size: 0.82rem;
     white-space: nowrap;
 }
 
 .data-table th {
     color: var(--text-muted);
-    font-size: .74rem;
+    font-size: 0.74rem;
     font-weight: 650;
 }
 
@@ -775,6 +794,14 @@ a.button .material-icons {
 }
 
 a.button.disabled {
-    opacity: .45;
+    opacity: 0.45;
     pointer-events: none;
+}
+
+.toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.79rem;
+    cursor: pointer;
 }

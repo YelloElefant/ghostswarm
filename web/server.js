@@ -28,7 +28,9 @@ class SERVER {
 
         this.app.get("/api/uploads", async (req, res) => {
             try {
-                res.json({ files: await tor.listTorrents() });
+                const files = await tor.listTorrents();
+                for (const f of files) f.swarm = await this.state.swarm.info(f.hash);
+                res.json({ files });
             } catch (err) {
                 res.status(500).json({ error: "could not read uploads" });
             }
@@ -48,6 +50,7 @@ class SERVER {
                 await pipeline(req, fs.createWriteStream(tmpPath, { flags: "wx" }));
                 const { hash, duplicate, torrent } = await tor.storeFile(tmpPath, name);
                 if (!duplicate) {
+                    await this.state.swarm.refresh(hash);
                     const packet = this.gstp.mkTORRENT(torrent);
                     this.state.markSeen(packet.id);
                     for (const conn of this.state.connections.values()) conn.send(packet);
@@ -81,7 +84,9 @@ class SERVER {
         // Removes the file (if held) and its torrent together
         const removeStored = async (req, res) => {
             try {
-                await tor.deleteTorrent(String(req.query.hash || ""));
+                const hash = String(req.query.hash || "");
+                await this.state.swarm.forget(hash);
+                await tor.deleteTorrent(hash);
                 res.json({ ok: true });
             } catch (err) {
                 const status = err.code === "EINVAL" ? 400 : err.code === "ENOENT" ? 404 : 500;
@@ -90,28 +95,11 @@ class SERVER {
         };
         this.app.delete("/api/uploads", removeStored);
 
-        this.app.post("/api/peer-torrents", async (req, res) => {
-            const conn = this.state.getConnection(req.body && req.body.to ? req.body.to : "");
-            if (!conn) return res.status(400).json({ error: "peer not found" });
-
-            const packet = this.gstp.mkLIST();
-            let timeoutHandle = null;
-            const p = new Promise((resolve) => {
-                timeoutHandle = setTimeout(() => {
-                    if (this.state.getPending(packet.id)) {
-                        this.state.removePending(packet.id);
-                        resolve({ timeout: true });
-                    }
-                }, 3000);
-                this.state.addPending(packet.id, { resolve, timeoutHandle });
-            });
-
-            this.state.markSeen(packet.id);
-            conn.send(packet);
-
-            const reply = await p;
-            if (reply.timeout) return res.status(504).json({ error: "No response" });
-            res.json({ ok: true, torrents: reply.body && reply.body.torrents || [] });
+        // Turns downloading on or off for this torrent on every bot
+        this.app.post("/api/swarm", async (req, res) => {
+            const hash = String(req.query.hash || "");
+            const ok = await this.state.swarm.setEnabled(hash, req.query.on === "1");
+            res.status(ok ? 200 : 404).json(ok ? { ok: true } : { error: "unknown torrent" });
         });
 
         this.app.post("/api/peer-status", async (req, res) => {

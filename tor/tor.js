@@ -176,10 +176,10 @@ function validateTorrent(t) {
 }
 
 // Saves a validated torrent from a peer. Returns false if invalid or already known.
-async function saveTorrent(t) {
+async function saveTorrent(t, dir = TORRENT_DIR) {
     if (!validateTorrent(t)) return false;
-    const dest = path.join(TORRENT_DIR, t.info.hash + TORRENT_EXT);
-    await fs.promises.mkdir(TORRENT_DIR, { recursive: true });
+    const dest = path.join(dir, t.info.hash + TORRENT_EXT);
+    await fs.promises.mkdir(dir, { recursive: true });
     const clean = { v: 1, infoHash: t.infoHash, created: t.created, info: t.info };
     try {
         await fs.promises.writeFile(dest, JSON.stringify(clean, null, 2), { flag: "wx" });

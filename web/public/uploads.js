@@ -52,11 +52,40 @@ function downloadLink(label, url, disabled) {
     return a;
 }
 
+function progressText(file) {
+    const sw = file.swarm;
+    if (!sw) return file.have ? "Complete" : "Torrent Only";
+    if (sw.complete) return "Complete";
+    return sw.have + " / " + sw.total + " Chunks";
+}
+
+function peersText(file) {
+    const sw = file.swarm;
+    return sw ? sw.peers + " With Chunks · " + sw.seeds + " Complete" : "-";
+}
+
+function swarmToggle(file) {
+    const label = document.createElement("label");
+    label.className = "toggle";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = !!(file.swarm && file.swarm.enabled);
+    box.addEventListener("change", function() {
+        box.disabled = true;
+        request("/api/swarm?hash=" + file.hash + "&on=" + (box.checked ? "1" : "0"), "POST")
+            .catch(function(err) { alert(err.message); box.checked = !box.checked; })
+            .finally(function() { box.disabled = false; });
+    });
+    label.append(box, document.createTextNode(box.checked ? " On" : " Off"));
+    return label;
+}
+
 function buildRow(values, numCols, actions, monoCols) {
     const tr = document.createElement("tr");
     values.forEach(function(text, i) {
         const td = document.createElement("td");
-        td.textContent = text;
+        if (text instanceof Node) td.appendChild(text);
+        else td.textContent = text;
         if (numCols.indexOf(i) !== -1) td.className = "num";
         if (monoCols.indexOf(i) !== -1) td.classList.add("mono");
         tr.appendChild(td);
@@ -97,7 +126,9 @@ function loadUploads() {
                     file.ext || "-",
                     formatSize(file.size),
                     file.hash.slice(0, 16) + "…",
-                    file.have ? "Yes" : "Torrent Only",
+                    progressText(file),
+                    peersText(file),
+                    swarmToggle(file),
                     new Date(file.created).toLocaleString()
                 ], [2], actions, [4]));
             });
@@ -113,62 +144,9 @@ function loadUploads() {
 
 function refreshAll() {
     loadUploads();
-    loadPeers();
 }
 
-function loadPeers() {
-    const select = document.getElementById("peerSelect");
-    const previous = select.value;
-    return fetch("/api/status")
-        .then(function(r) { return r.json(); })
-        .then(function(res) {
-            select.replaceChildren(new Option("Select a peer", ""));
-            (res.peers || []).forEach(function(peer) {
-                if (peer.id !== res.id) select.appendChild(new Option(peer.id, peer.id));
-            });
-            select.value = previous;
-        })
-        .catch(function() {});
-}
-
-function loadPeerTorrents() {
-    const to = document.getElementById("peerSelect").value;
-    const summary = document.getElementById("peerSummary");
-    if (!to) {
-        summary.textContent = "Choose a peer first.";
-        return;
-    }
-    summary.textContent = "Asking " + to + "…";
-    fetch("/api/peer-torrents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: to })
-    })
-        .then(function(r) {
-            return r.json().then(function(res) {
-                if (!r.ok) throw new Error(res.error || "Request failed");
-                return res;
-            });
-        })
-        .then(function(res) {
-            const body = document.getElementById("peerBody");
-            body.replaceChildren();
-            res.torrents.forEach(function(t) {
-                body.appendChild(buildRow([
-                    t.name,
-                    formatSize(t.size),
-                    String(t.chunks),
-                    t.hash.slice(0, 16) + "…"
-                ], [1, 2], [], [3]));
-            });
-            summary.textContent = to + " holds " + plural(res.torrents.length, "torrent");
-        })
-        .catch(function(err) {
-            summary.textContent = "Unable to load: " + err.message;
-        });
-}
-
-document.getElementById("peerLoadBtn").addEventListener("click", loadPeerTorrents);
 
 document.getElementById("refreshBtn").addEventListener("click", refreshAll);
 refreshAll();
+setInterval(function() { if (!document.hidden) loadUploads(); }, 2000);
