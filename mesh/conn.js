@@ -1,3 +1,4 @@
+const tor = require("../tor/tor");
 class conn {
     constructor(socket, initiatedByMe, remoteAddrKey, state, gstp) {
         this.socket = socket;
@@ -145,6 +146,27 @@ class conn {
 
         // SUTATS - Status reply, resolves the pending STATUS request
         if (msg && msg.t === T.SUTATS) {
+            const waiter = this.state.getPending(msg.rid);
+            if (waiter) {
+                clearTimeout(waiter.timeoutHandle || (waiter.resolve && waiter.resolve.timeoutHandle));
+                const resolveFn = typeof waiter.resolve === 'function' ? waiter.resolve : waiter.resolve?.resolve;
+                if (resolveFn) resolveFn(msg);
+                this.state.removePending(msg.rid);
+            }
+            return;
+        }
+
+        // LIST - Peer asks which torrents we hold
+        if (msg && msg.t === T.LIST) {
+            tor.listTorrents()
+                .then((list) => list.map(({ hash, name, size, chunks, infoHash }) => ({ hash, name, size, chunks, infoHash })))
+                .catch(() => [])
+                .then((torrents) => this.send(this.gstp.mkTSIL(msg.id, torrents)));
+            return;
+        }
+
+        // TSIL - Torrent list reply, resolves the pending LIST request
+        if (msg && msg.t === T.TSIL) {
             const waiter = this.state.getPending(msg.rid);
             if (waiter) {
                 clearTimeout(waiter.timeoutHandle || (waiter.resolve && waiter.resolve.timeoutHandle));

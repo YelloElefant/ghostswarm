@@ -533,3 +533,245 @@ button.secondary:hover,
         transition-duration: .01ms !important;
     }
 }
+
+.header-actions {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-actions > button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.header-actions .material-icons {
+    color: inherit;
+    font-size: 18px;
+}
+
+#uploadModal {
+    width: min(520px, calc(100vw - 32px));
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--text);
+}
+
+#uploadModal::backdrop {
+    background: rgba(5, 9, 8, .7);
+}
+
+.modal-header {
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.drop-zone {
+    margin: 0;
+    padding: 36px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    background: #0d1513;
+    color: var(--text);
+    cursor: pointer;
+    font-size: .85rem;
+    text-align: center;
+    transition: border-color .16s ease, background .16s ease;
+}
+
+.drop-zone:hover,
+.drop-zone.dragging {
+    border-color: var(--primary);
+    background: rgba(70, 214, 164, .06);
+}
+
+.drop-zone .material-icons {
+    color: var(--primary);
+    font-size: 40px;
+}
+
+.upload-list {
+    margin: 14px 0 0;
+    padding: 0;
+    max-height: 220px;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.upload-list li {
+    padding: 8px 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 12px;
+    border-top: 1px solid var(--border);
+    font-size: .78rem;
+}
+
+.upload-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.upload-state {
+    color: var(--text-muted);
+}
+
+.upload-list progress {
+    width: 100%;
+    height: 5px;
+    grid-column: 1 / -1;
+    accent-color: var(--primary);
+}
+
+.upload-list .done .upload-state {
+    color: var(--primary);
+}
+
+.upload-list .failed .upload-state {
+    color: var(--danger);
+}
+
+a.button {
+    min-height: 38px;
+    padding: 7px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-raised);
+    color: var(--text);
+    font-size: .79rem;
+    font-weight: 650;
+    text-decoration: none;
+    transition: border-color .16s ease, color .16s ease;
+}
+
+a.button:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+a.button .material-icons {
+    color: inherit;
+    font-size: 18px;
+}
+
+.plain-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.page {
+    width: min(960px, 100%);
+    min-height: 0;
+    margin: 0 auto;
+    padding: 24px 20px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.page-heading {
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.page-heading h1 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.page-heading p {
+    margin: 2px 0 0;
+    font-size: .78rem;
+}
+
+.table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.data-table th,
+.data-table td {
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: .82rem;
+    white-space: nowrap;
+}
+
+.data-table th {
+    color: var(--text-muted);
+    font-size: .74rem;
+    font-weight: 650;
+}
+
+.data-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.data-table td:first-child {
+    max-width: 360px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.data-table .num {
+    text-align: right;
+}
+
+.empty {
+    margin: 0;
+    padding: 28px;
+    text-align: center;
+}
+
+.section-gap {
+    margin-top: 32px;
+}
+
+.page-heading h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.row-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.row-actions button {
+    padding: 4px 10px;
+    font-size: 13px;
+}
+
+.mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+}

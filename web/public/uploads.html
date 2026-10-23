@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>GhostSwarm Bot • Uploads</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+
+<body>
+    <header>
+        <a id="title" class="plain-link" href="index.html">
+            <div id="icon">
+                <i class="material-icons" id="network-icon">hub</i>
+            </div>
+            <span id="ghostswarm">GhostSwarm</span>
+        </a>
+        <div class="header-actions">
+            <a class="button secondary" href="index.html">
+                <i class="material-icons" aria-hidden="true">arrow_back</i>
+                Dashboard
+            </a>
+        </div>
+    </header>
+
+    <main class="page">
+        <div class="page-heading">
+            <div>
+                <h1>Uploads</h1>
+                <p id="uploadsSummary" class="muted">Loading…</p>
+            </div>
+            <button id="refreshBtn" class="secondary">Refresh</button>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Extension</th>
+                        <th class="num">Size</th>
+                        <th>Hash</th>
+                        <th>Uploaded</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="uploadsBody"></tbody>
+            </table>
+            <p id="emptyState" class="empty muted" hidden>No files have been uploaded yet.</p>
+        </div>
+
+        <div class="page-heading section-gap">
+            <div>
+                <h2>Torrent Files</h2>
+                <p id="torrentsSummary" class="muted">Loading…</p>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th class="num">Size</th>
+                        <th class="num">Chunks</th>
+                        <th>Info Hash</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="torrentsBody"></tbody>
+            </table>
+            <p id="torrentsEmpty" class="empty muted" hidden>No torrent files have been created yet.</p>
+        </div>
+
+        <div class="page-heading section-gap">
+            <div>
+                <h2>Peer Torrents</h2>
+                <p id="peerSummary" class="muted">Choose a peer to see which torrents it holds.</p>
+            </div>
+            <div class="row-actions">
+                <select id="peerSelect" aria-label="Peer"></select>
+                <button id="peerLoadBtn" class="secondary">Load Torrents</button>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th class="num">Size</th>
+                        <th class="num">Chunks</th>
+                        <th>File Hash</th>
+                    </tr>
+                </thead>
+                <tbody id="peerBody"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <script src="uploads.js"></script>
+</body>
+
+</html>

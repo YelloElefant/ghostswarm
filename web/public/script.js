@@ -70,6 +70,8 @@ window.addEventListener("DOMContentLoaded", function() {
 
     document.getElementById("getStatusBtn").addEventListener("click", getBotStatus);
 
+    setupUpload();
+
     window.addEventListener("resize", function() {
         if (lastStatus) renderGraph(lastStatus);
     });
@@ -127,7 +129,7 @@ function renderStatus(title, status) {
 function renderStatusTargets(s) {
     const select = document.getElementById("statusTarget");
     const selected = select.value;
-    select.replaceChildren(new Option("This bot (" + s.id + ")", s.id));
+    select.replaceChildren(new Option("Select a peer", ""));
     s.peers.forEach(function(peer) {
         if (peer.id) select.add(new Option(peer.id, peer.id));
     });
@@ -138,12 +140,7 @@ function renderStatusTargets(s) {
 
 function getBotStatus() {
     const target = document.getElementById("statusTarget").value;
-    if (!target || !lastStatus) return;
-
-    if (target === lastStatus.id) {
-        renderStatus("This bot", lastStatus.snap);
-        return;
-    }
+    if (!target) return;
 
     const result = document.getElementById("statusResult");
     result.textContent = "Requesting status…";
@@ -351,4 +348,89 @@ function renderGraph(s) {
             return "translate(" + d.x + "," + d.y + ")";
         });
     });
+}
+
+/* ---------- Upload modal ---------- */
+function setupUpload() {
+    const modal = document.getElementById("uploadModal");
+    const zone = document.getElementById("dropZone");
+    const input = document.getElementById("fileInput");
+
+    document.getElementById("openUploadBtn").addEventListener("click", function() {
+        modal.showModal();
+    });
+    document.getElementById("closeUploadBtn").addEventListener("click", function() {
+        modal.close();
+    });
+    modal.addEventListener("click", function(event) {
+        if (event.target === modal) modal.close();
+    });
+
+    ["dragenter", "dragover"].forEach(function(type) {
+        zone.addEventListener(type, function(event) {
+            event.preventDefault();
+            zone.classList.add("dragging");
+        });
+    });
+    ["dragleave", "drop"].forEach(function(type) {
+        zone.addEventListener(type, function(event) {
+            event.preventDefault();
+            zone.classList.remove("dragging");
+        });
+    });
+    zone.addEventListener("drop", function(event) {
+        uploadFiles(event.dataTransfer.files);
+    });
+    input.addEventListener("change", function() {
+        uploadFiles(input.files);
+        input.value = "";
+    });
+}
+
+function uploadFiles(files) {
+    Array.from(files).forEach(uploadFile);
+}
+
+function uploadFile(file) {
+    const item = document.createElement("li");
+    const name = document.createElement("span");
+    name.className = "upload-name";
+    name.textContent = file.name;
+    const state = document.createElement("span");
+    state.className = "upload-state";
+    state.textContent = "0%";
+    const bar = document.createElement("progress");
+    bar.max = 100;
+    bar.value = 0;
+    item.append(name, state, bar);
+    document.getElementById("uploadList").prepend(item);
+
+    const fail = function(message) {
+        item.classList.add("failed");
+        state.textContent = message;
+    };
+
+    // Sending the File itself lets the browser stream it from disk
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload?name=" + encodeURIComponent(file.name));
+    xhr.setRequestHeader("content-type", "application/octet-stream");
+    xhr.upload.onprogress = function(event) {
+        if (!event.lengthComputable) return;
+        const pct = Math.round((event.loaded / event.total) * 100);
+        bar.value = pct;
+        state.textContent = pct + "%";
+    };
+    xhr.onload = function() {
+        let res = {};
+        try { res = JSON.parse(xhr.responseText); } catch (e) { /* non-JSON error */ }
+        if (xhr.status === 200 && res.ok) {
+            bar.value = 100;
+            item.classList.add("done");
+            state.textContent = res.duplicate ? "Already Stored" : "Done";
+        } else {
+            fail(res.error || "Failed");
+        }
+    };
+    xhr.onerror = function() { fail("Failed"); };
+    xhr.send(file);
 }

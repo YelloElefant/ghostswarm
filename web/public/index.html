@@ -19,10 +19,20 @@
             </div>
             <span id="ghostswarm">GhostSwarm</span>
         </div>
-        <div id="botBadge" class="online">
+        <div class="header-actions">
+            <a class="button secondary" href="uploads.html">
+                <i class="material-icons" aria-hidden="true">folder_open</i>
+                Uploads
+            </a>
+            <button id="openUploadBtn" class="secondary">
+                <i class="material-icons" aria-hidden="true">upload_file</i>
+                Upload
+            </button>
+            <div id="botBadge" class="online">
             <span class="status-dot" aria-hidden="true"></span>
             <span id="botStatus">Connecting</span>
             <span id="botId"></span>
+        </div>
         </div>
     </header>
     <main class="dashboard">
@@ -100,6 +110,20 @@
             </div>
         </section>
     </main>
+
+    <dialog id="uploadModal" aria-labelledby="uploadTitle">
+        <div class="modal-header">
+            <h2 id="uploadTitle">Upload Files</h2>
+            <button id="closeUploadBtn" class="icon-button" aria-label="Close upload dialog">×</button>
+        </div>
+        <label id="dropZone" class="drop-zone" for="fileInput">
+            <i class="material-icons" aria-hidden="true">cloud_upload</i>
+            <strong>Drag and drop files here</strong>
+            <span class="muted">or click to browse. Files are saved to the data folder.</span>
+            <input id="fileInput" type="file" multiple hidden>
+        </label>
+        <ul id="uploadList" class="upload-list" aria-live="polite"></ul>
+    </dialog>
 
     <script src="lib.js"></script>
     <script src="script.js"></script>
