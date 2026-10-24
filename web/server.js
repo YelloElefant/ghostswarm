@@ -69,6 +69,7 @@ class SERVER {
                 await pipeline(req, fs.createWriteStream(tmpPath, { flags: "wx" }));
                 const { hash, duplicate, torrent } = await tor.storeFile(tmpPath, name);
                 if (!duplicate) {
+                    await this.state.swarm.untomb(hash);
                     await this.state.swarm.refresh(hash);
                     const packet = this.gstp.mkTORRENT(torrent);
                     this.state.markSeen(packet.id);

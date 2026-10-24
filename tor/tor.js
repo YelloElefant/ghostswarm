@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-const DATA_DIR = path.join(__dirname, "..", "data");
+const DATA_DIR = process.env.GS_DATA_DIR || path.join(__dirname, "..", "data");
 const TORRENT_DIR = path.join(DATA_DIR, "torrents");
 
 const CHUNK_SIZE = 512 * 1024; // 0.5 MB

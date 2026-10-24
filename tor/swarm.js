@@ -42,6 +42,7 @@ class Swarm {
         this.torrentDir = path.join(dataDir, "torrents");
         this.partDir = path.join(dataDir, "parts");
         this.metaDir = path.join(dataDir, "swarm");
+        this.deletedDir = path.join(dataDir, "deleted");
 
         this.entries = new Map();
         this.loading = new Map();
@@ -203,6 +204,12 @@ class Swarm {
     async onTorrent(msg, conn) {
         if (!this.firstSight(msg)) return;
         const t = msg.body && msg.body.torrent;
+        const hash = t && t.info && t.info.hash;
+        if (typeof hash === "string" && tor.HASH_RE.test(hash)) {
+            // A resync must not bring back something deleted here; a fresh upload does
+            if (msg.body.sync) { if (await this.isDeleted(hash)) return; }
+            else await this.untomb(hash);
+        }
         if (await tor.saveTorrent(t, this.torrentDir)) await this.refresh(t.info.hash);
         this.flood(msg, conn.remoteId);
     }
@@ -230,9 +237,16 @@ class Swarm {
         return true;
     }
 
+    // Deleted hashes are remembered so a bot that was offline learns about the deletion
+    tombPath(hash) { return path.join(this.deletedDir, hash); }
+    isDeleted(hash) { return fs.promises.access(this.tombPath(hash)).then(() => true, () => false); }
+    untomb(hash) { return fs.promises.unlink(this.tombPath(hash)).catch(() => { }); }
+
     // Removes a torrent and its file from this bot, optionally telling every other bot
     async remove(hash, propagate = true) {
         await this.forget(hash);
+        await fs.promises.mkdir(this.deletedDir, { recursive: true });
+        await fs.promises.writeFile(this.tombPath(hash), "");
         let err = null;
         try { await tor.deleteTorrent(hash); } catch (e) { err = e; }
         if (propagate) {
@@ -263,13 +277,25 @@ class Swarm {
         return e && e.have.size > 0 ? encodeBitfield(e.have, e.torrent.info.chunks.length) : null;
     }
 
+    // Brings a (re)connected peer up to date: deletions, torrents, download switches and our chunks.
+    // Sent to that peer only (ttl 1); the peer does the same for us when it sees our connection.
     async announceAll(conn) {
+        const direct = (p) => Object.assign(p, { ttl: 1 });
+        let tombs = [];
+        try { tombs = await fs.promises.readdir(this.deletedDir); } catch (e) { /* none */ }
+        for (const h of tombs) if (tor.HASH_RE.test(h)) conn.send(direct(this.gstp.mkDEL(h)));
+
         let files;
         try { files = await fs.promises.readdir(this.torrentDir); } catch (e) { return; }
         for (const f of files) {
-            const hash = f.slice(0, -tor.TORRENT_EXT.length);
             if (!f.endsWith(tor.TORRENT_EXT)) continue;
-            await this.ensure(hash);
+            const hash = f.slice(0, -tor.TORRENT_EXT.length);
+            const e = await this.ensure(hash);
+            if (!e) continue;
+            const t = this.gstp.mkTORRENT(e.torrent);
+            t.body.sync = true;
+            conn.send(direct(t));
+            if (e.enabled) conn.send(direct(this.gstp.mkSWARM(hash, true)));
             const bits = this.bitfieldFor(hash);
             if (bits) conn.send(this.gstp.mkHAVE(hash, bits));
         }
